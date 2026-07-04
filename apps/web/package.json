@@ -1,0 +1,31 @@
+{
+  "name": "@formularservice/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@formio/core": "^2.5.0",
+    "@formio/js": "^5.0.0",
+    "@formio/react": "^6.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "formiojs": "^4.21.7",
+    "lucide-react": "^0.468.0",
+    "oidc-client-ts": "^3.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}

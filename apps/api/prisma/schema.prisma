@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectRole {
+  SERVICE_ADMIN
+  PROJECT_ADMIN
+  FORM_EDITOR
+  VIEWER
+}
+
+enum TenantRole {
+  TENANT_ADMIN
+  PROJECT_ADMIN
+  FORM_EDITOR
+  VIEWER
+}
+
+enum LifecycleStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum FormVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum InvitationStatus {
+  INVITED
+  OPENED
+  SUBMITTED
+  EXPIRED
+}
+
+model Tenant {
+  id        String    @id @default(uuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  users     TenantUser[]
+  projects  Project[]
+}
+
+model TenantUser {
+  id        String      @id @default(uuid())
+  tenantId  String
+  email     String
+  subject   String?
+  role      TenantRole  @default(VIEWER)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, email])
+}
+
+model Project {
+  id          String            @id @default(uuid())
+  tenantId    String
+  name        String
+  description String?
+  languages   Json              @default("[\"de\"]")
+  status      LifecycleStatus   @default(ACTIVE)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  users       ProjectUser[]
+  forms       Form[]
+  invitations Invitation[]
+  apiKeys     ApiKey[]
+  auditLogs   AuditLog[]
+}
+
+model ProjectUser {
+  id        String      @id @default(uuid())
+  projectId String
+  email     String
+  subject   String?
+  role      ProjectRole
+  createdAt DateTime    @default(now())
+  project   Project     @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, email])
+}
+
+model Form {
+  id          String          @id @default(uuid())
+  projectId   String
+  name        String
+  slug        String
+  status      LifecycleStatus @default(ACTIVE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  project     Project         @relation(fields: [projectId], references: [id])
+  versions    FormVersion[]
+  publications FormPublication[]
+  submissions Submission[]
+
+  @@unique([projectId, slug])
+}
+
+model FormVersion {
+  id          String            @id @default(uuid())
+  formId      String
+  version     Int
+  status      FormVersionStatus @default(DRAFT)
+  schema      Json
+  translations Json             @default("{}")
+  createdBy   String?
+  publishedAt DateTime?
+  createdAt   DateTime          @default(now())
+  form        Form              @relation(fields: [formId], references: [id])
+  submissions Submission[]
+  publications FormPublication[]
+
+  @@unique([formId, version])
+}
+
+model FormPublication {
+  id            String      @id @default(uuid())
+  formId        String
+  formVersionId String
+  publicSlug    String      @unique
+  active        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  form          Form        @relation(fields: [formId], references: [id])
+  formVersion   FormVersion @relation(fields: [formVersionId], references: [id])
+}
+
+model Invitation {
+  id        String           @id @default(uuid())
+  projectId String
+  formId    String
+  email     String
+  token     String           @unique
+  status    InvitationStatus @default(INVITED)
+  expiresAt DateTime
+  openedAt  DateTime?
+  submittedAt DateTime?
+  createdAt DateTime         @default(now())
+  project   Project          @relation(fields: [projectId], references: [id])
+}
+
+model Submission {
+  id            String      @id @default(uuid())
+  projectId     String
+  formId        String
+  formVersionId String
+  invitationId  String?
+  data          Json
+  language      String      @default("de")
+  submittedAt   DateTime    @default(now())
+  form          Form        @relation(fields: [formId], references: [id])
+  formVersion   FormVersion @relation(fields: [formVersionId], references: [id])
+}
+
+model ApiKey {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  keyHash     String
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  project     Project   @relation(fields: [projectId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  projectId String?
+  actor     String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+  project   Project? @relation(fields: [projectId], references: [id])
+}

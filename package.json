@@ -1,0 +1,19 @@
+{
+  "name": "formularservice-v1",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mandantenfaehiger Formularservice V1 auf Basis von Form.io",
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:status": "node scripts/write-test-status.mjs",
+    "lint": "pnpm -r lint",
+    "db:migrate": "pnpm --filter @formularservice/api prisma:migrate",
+    "db:generate": "pnpm --filter @formularservice/api prisma:generate"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.4"
+}

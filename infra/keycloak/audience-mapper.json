@@ -1,0 +1,10 @@
+{
+  "name": "formularservice-api-audience",
+  "protocol": "openid-connect",
+  "protocolMapper": "oidc-audience-mapper",
+  "config": {
+    "included.client.audience": "formularservice-api",
+    "access.token.claim": "true",
+    "id.token.claim": "false"
+  }
+}
