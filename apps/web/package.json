@@ -6,7 +6,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "start": "node server.mjs"
   },
   "dependencies": {
     "@formio/core": "^2.5.0",
