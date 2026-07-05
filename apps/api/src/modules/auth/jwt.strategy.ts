@@ -13,7 +13,7 @@ type JwtPayload = {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(config: ConfigService) {
-    const issuer = config.get<string>("OIDC_ISSUER_URL") ?? "http://localhost:8080/realms/formularservice";
+    const issuer = config.get<string>("OIDC_ISSUER_URL") ?? "http://127.0.0.1:8080/realms/formularservice";
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       audience: config.get<string>("OIDC_AUDIENCE") ?? "formularservice-api",

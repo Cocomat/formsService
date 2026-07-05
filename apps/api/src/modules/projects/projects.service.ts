@@ -85,6 +85,53 @@ export class ProjectsService {
     return project;
   }
 
+  async permanentlyDelete(id: string, actor?: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      include: {
+        forms: { select: { id: true } },
+        users: { select: { id: true } },
+        invitations: { select: { id: true } },
+        apiKeys: { select: { id: true } }
+      }
+    });
+    if (!project) throw new NotFoundException("Project not found");
+
+    const formIds = project.forms.map((form) => form.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.invitation.deleteMany({ where: { projectId: id } });
+      await tx.apiKey.deleteMany({ where: { projectId: id } });
+      await tx.projectUser.deleteMany({ where: { projectId: id } });
+
+      if (formIds.length > 0) {
+        await tx.formPublication.deleteMany({ where: { formId: { in: formIds } } });
+        await tx.submission.deleteMany({ where: { formId: { in: formIds } } });
+        await tx.formVersion.deleteMany({ where: { formId: { in: formIds } } });
+        await tx.form.deleteMany({ where: { id: { in: formIds } } });
+      }
+
+      await tx.project.delete({ where: { id } });
+    });
+
+    await this.audit.record({
+      actor,
+      action: "project.permanently_deleted",
+      entity: "Project",
+      entityId: id,
+      metadata: {
+        name: project.name,
+        tenantId: project.tenantId,
+        forms: project.forms.length,
+        users: project.users.length,
+        invitations: project.invitations.length,
+        apiKeys: project.apiKeys.length
+      }
+    });
+
+    return { id, deleted: true };
+  }
+
   async inviteUser(projectId: string, dto: InviteProjectUserDto, actor?: string) {
     await this.get(projectId);
     const user = await this.prisma.projectUser.upsert({

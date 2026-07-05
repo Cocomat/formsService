@@ -36,6 +36,12 @@ export class ProjectsController {
     return this.projects.update(id, dto, req.user?.subject);
   }
 
+  @Delete(":id/permanent")
+  @Roles("service-admin", "project-admin")
+  permanentlyDelete(@Param("id") id: string, @Req() req: AuthRequest) {
+    return this.projects.permanentlyDelete(id, req.user?.subject);
+  }
+
   @Delete(":id")
   @Roles("service-admin", "project-admin")
   archive(@Param("id") id: string, @Req() req: AuthRequest) {

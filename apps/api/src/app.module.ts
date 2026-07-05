@@ -6,6 +6,7 @@ import { AuthModule } from "./modules/auth/auth.module";
 import { FormsModule } from "./modules/forms/forms.module";
 import { HealthController } from "./modules/health/health.controller";
 import { InvitationsModule } from "./modules/invitations/invitations.module";
+import { MailModule } from "./modules/mail/mail.module";
 import { PrismaModule } from "./modules/prisma/prisma.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { SubmissionsModule } from "./modules/submissions/submissions.module";
@@ -20,6 +21,7 @@ import { TenantsModule } from "./modules/tenants/tenants.module";
     ProjectsModule,
     FormsModule,
     InvitationsModule,
+    MailModule,
     SubmissionsModule,
     ApiKeysModule,
     TenantsModule

@@ -28,7 +28,7 @@ Frontend: `http://localhost:5173`
 
 Swagger/OpenAPI: `http://localhost:3000/docs`
 
-Mailhog: `http://localhost:8025`
+Mailhog: `http://localhost:8025` - lokale Einladungs-E-Mails landen hier.
 
 Keycloak: `http://localhost:8080` (`admin` / `admin`)
 

@@ -2,6 +2,8 @@ import { Controller, Get, Header, Param, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { ApiBearerAuth, ApiSecurity, ApiTags } from "@nestjs/swagger";
 import { ApiKeyGuard } from "../api-keys/api-key.guard";
+import { Roles } from "../auth/roles.decorator";
+import { RolesGuard } from "../auth/roles.guard";
 import { SubmissionsService } from "./submissions.service";
 
 @ApiTags("submissions")
@@ -11,21 +13,24 @@ export class SubmissionsController {
 
   @Get("projects/:projectId/forms/:formId/submissions")
   @ApiBearerAuth()
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   list(@Param("projectId") projectId: string, @Param("formId") formId: string) {
     return this.submissions.list(projectId, formId);
   }
 
   @Get("projects/:projectId/submissions/:submissionId")
   @ApiBearerAuth()
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   get(@Param("projectId") projectId: string, @Param("submissionId") submissionId: string) {
     return this.submissions.get(projectId, submissionId);
   }
 
   @Get("projects/:projectId/forms/:formId/submissions.csv")
   @ApiBearerAuth()
-  @UseGuards(AuthGuard("jwt"))
+  @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   @Header("content-type", "text/csv")
   exportCsv(@Param("projectId") projectId: string, @Param("formId") formId: string) {
     return this.submissions.csv(projectId, formId);

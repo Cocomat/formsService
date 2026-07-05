@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { LifecycleStatus } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
+import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateTenantDto, UpdateTenantUserDto, UpsertTenantUserDto } from "./tenants.dto";
 
@@ -8,7 +9,8 @@ import { CreateTenantDto, UpdateTenantUserDto, UpsertTenantUserDto } from "./ten
 export class TenantsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly audit: AuditService
+    private readonly audit: AuditService,
+    private readonly mail: MailService
   ) {}
 
   list() {
@@ -55,7 +57,7 @@ export class TenantsService {
   }
 
   async upsertUser(tenantId: string, dto: UpsertTenantUserDto, actor?: string) {
-    await this.ensureTenant(tenantId);
+    const tenant = await this.ensureTenant(tenantId);
     const user = await this.prisma.tenantUser.upsert({
       where: { tenantId_email: { tenantId, email: dto.email } },
       update: { role: dto.role, subject: dto.subject },
@@ -64,6 +66,18 @@ export class TenantsService {
     await this.audit.record({
       actor,
       action: "tenant.user_upserted",
+      entity: "TenantUser",
+      entityId: user.id,
+      metadata: { tenantId, email: user.email, role: user.role }
+    });
+    await this.mail.sendTenantUserInvitation({
+      email: user.email,
+      role: user.role,
+      tenantName: tenant.name
+    });
+    await this.audit.record({
+      actor,
+      action: "tenant.user_invitation_sent",
       entity: "TenantUser",
       entityId: user.id,
       metadata: { tenantId, email: user.email, role: user.role }

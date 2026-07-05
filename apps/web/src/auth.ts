@@ -1,7 +1,7 @@
 import { User, UserManager, WebStorageStateStore } from "oidc-client-ts";
 import { useCallback, useEffect, useState } from "react";
 
-const oidcAuthority = import.meta.env.VITE_OIDC_AUTHORITY ?? "http://localhost:8080/realms/formularservice";
+const oidcAuthority = import.meta.env.VITE_OIDC_AUTHORITY ?? "http://127.0.0.1:8080/realms/formularservice";
 const oidcClientId = import.meta.env.VITE_OIDC_CLIENT_ID ?? "formularservice-web";
 
 export const userManager = new UserManager({

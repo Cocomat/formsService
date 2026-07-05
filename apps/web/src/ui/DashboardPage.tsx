@@ -28,10 +28,13 @@ type TenantGroup = {
   projects: Project[];
 };
 
+type DashboardView = "tenant" | "project";
+
 export function DashboardPage() {
   const { user, login, setSidebarContent } = useOutletContext<AppOutletContext>();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [activeView, setActiveView] = useState<DashboardView>("tenant");
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [archivedForms, setArchivedForms] = useState<FormSummary[]>([]);
@@ -40,10 +43,15 @@ export function DashboardPage() {
   const [tenantUserRole, setTenantUserRole] = useState<TenantRole>("VIEWER");
   const [createTenantError, setCreateTenantError] = useState<string | null>(null);
   const [tenantUserError, setTenantUserError] = useState<string | null>(null);
+  const [tenantUserMessage, setTenantUserMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creatingTenant, setCreatingTenant] = useState(false);
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FormSummary | null>(null);
+  const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(null);
+  const selectedTenant = useMemo(() => {
+    return tenants.find((tenant) => tenant.id === selectedTenantId) ?? null;
+  }, [tenants, selectedTenantId]);
   const tenantGroups = useMemo<TenantGroup[]>(() => {
     return tenants
       .map((tenant) => ({
@@ -54,19 +62,21 @@ export function DashboardPage() {
       .sort((left, right) => left.name.localeCompare(right.name));
   }, [tenants]);
 
-  async function load(preferredProjectId?: string, preferredTenantId?: string) {
+  async function load(preferredProjectId?: string, preferredTenantId?: string, preferredView?: DashboardView) {
     setLoadError(null);
     const data = await api<Tenant[]>("/tenants");
     const allProjects = data.flatMap((tenant) => tenant.projects ?? []);
     const targetTenantId = preferredTenantId ?? selectedTenantId ?? selectedProject?.tenantId ?? data[0]?.id ?? null;
     const tenantProjects = targetTenantId ? allProjects.filter((project) => project.tenantId === targetTenantId) : allProjects;
     const targetId = preferredProjectId ?? selectedProject?.id;
-    const nextProject = targetId
+    const nextView = preferredView ?? (preferredProjectId ? "project" : activeView);
+    const nextProject = nextView === "project" && targetId
       ? allProjects.find((project) => project.id === targetId) ?? tenantProjects[0] ?? null
-      : tenantProjects[0] ?? allProjects[0] ?? null;
+      : null;
     const nextTenantId = nextProject?.tenantId ?? targetTenantId;
     setTenants(data);
     setProjects(allProjects);
+    setActiveView(nextView);
     setSelectedTenantId(nextTenantId);
     setSelectedProject(nextProject);
     if (nextProject) {
@@ -92,6 +102,7 @@ export function DashboardPage() {
   }
 
   async function selectProject(project: Project) {
+    setActiveView("project");
     setSelectedTenantId(project.tenantId);
     setSelectedProject(project);
     await loadArchivedForms(project.id);
@@ -99,13 +110,10 @@ export function DashboardPage() {
   }
 
   async function selectTenant(tenant: TenantGroup) {
-    const nextProject = tenant.projects[0] ?? null;
+    setActiveView("tenant");
     setSelectedTenantId(tenant.id);
-    setSelectedProject(nextProject);
+    setSelectedProject(null);
     setArchivedForms([]);
-    if (nextProject) {
-      await loadArchivedForms(nextProject.id);
-    }
     await loadTenantUsers(tenant.id);
   }
 
@@ -113,6 +121,7 @@ export function DashboardPage() {
     if (!user) {
       setTenants([]);
       setProjects([]);
+      setActiveView("tenant");
       setSelectedTenantId(null);
       setSelectedProject(null);
       setArchivedForms([]);
@@ -151,7 +160,7 @@ export function DashboardPage() {
                 {tenant.projects.length === 0 && <p className="empty-state compact-empty">Noch keine Projekte.</p>}
                 {tenant.projects.map((project) => (
                   <button
-                    className={project.id === selectedProject?.id ? "project-item active" : "project-item"}
+                    className={activeView === "project" && project.id === selectedProject?.id ? "project-item active" : "project-item"}
                     key={project.id}
                     onClick={() => void selectProject(project)}
                   >
@@ -183,7 +192,7 @@ export function DashboardPage() {
     );
 
     return () => setSidebarContent(null);
-  }, [login, tenantGroups, selectedProject, selectedTenantId, setSidebarContent, user]);
+  }, [activeView, login, tenantGroups, selectedProject, selectedTenantId, setSidebarContent, user]);
 
   async function createProject() {
     const project = await api<Project>("/projects", {
@@ -195,7 +204,7 @@ export function DashboardPage() {
         languages: ["de", "en"]
       })
     });
-    await load(project.id);
+    await load(project.id, project.tenantId, "project");
   }
 
   async function submitCreateTenant(name: string) {
@@ -206,7 +215,7 @@ export function DashboardPage() {
         body: JSON.stringify({ name })
       });
       setCreatingTenant(false);
-      await load(undefined, tenant.id);
+      await load(undefined, tenant.id, "tenant");
     } catch (error) {
       setCreateTenantError(error instanceof Error ? error.message : "Mandant konnte nicht erstellt werden.");
       throw error;
@@ -224,13 +233,14 @@ export function DashboardPage() {
         translations: { de: {}, en: {} }
       })
     });
-    await load(selectedProject.id);
+    await load(selectedProject.id, selectedProject.tenantId, "project");
   }
 
   async function addTenantUser() {
     const tenantId = selectedTenantId ?? selectedProject?.tenantId;
     if (!tenantId || !tenantUserEmail.trim()) return;
     setTenantUserError(null);
+    setTenantUserMessage(null);
     try {
       await api<TenantUser>(`/tenants/${tenantId}/users`, {
         method: "POST",
@@ -238,6 +248,7 @@ export function DashboardPage() {
       });
       setTenantUserEmail("");
       setTenantUserRole("VIEWER");
+      setTenantUserMessage("Benutzer wurde gespeichert und per E-Mail eingeladen.");
       await loadTenantUsers(tenantId);
     } catch (error) {
       setTenantUserError(error instanceof Error ? error.message : "Benutzer konnte nicht gespeichert werden.");
@@ -297,6 +308,14 @@ export function DashboardPage() {
     await load(selectedProject.id);
   }
 
+  async function permanentlyDeleteProject() {
+    if (!projectDeleteTarget) return;
+    const tenantId = projectDeleteTarget.tenantId;
+    await api(`/projects/${projectDeleteTarget.id}/permanent`, { method: "DELETE" });
+    setProjectDeleteTarget(null);
+    await load(undefined, tenantId, "tenant");
+  }
+
   if (!user) {
     return <LoginLanding onLogin={login} />;
   }
@@ -306,7 +325,7 @@ export function DashboardPage() {
       <header className="page-header">
         <div>
           <p className="eyebrow">V1 Admin</p>
-          <h1>Projektverwaltung</h1>
+          <h1>{activeView === "tenant" ? "Mandantendetails" : "Projektverwaltung"}</h1>
         </div>
         <button disabled={!user} onClick={createProject}>
           <Plus size={16} />
@@ -316,44 +335,40 @@ export function DashboardPage() {
       {loadError && <p className="status-message failed">{loadError}</p>}
 
       <div className="dashboard-layout">
-        <div className="project-workspace">
-          <section className="panel project-overview">
-            <div className="project-heading">
-              <div>
-                <p className="eyebrow">Projekt</p>
-                <h2>{selectedProject?.name ?? "Kein Projekt"}</h2>
-                {selectedProject && <p className="muted-line">Sprachen: {selectedProject.languages.join(", ")}</p>}
-              </div>
-              <div className="overview-stats" aria-label="Projektstatistik">
-                <span>
-                  <strong>{selectedProject?.forms.length ?? 0}</strong>
-                  Aktiv
-                </span>
-                <span>
-                  <strong>{archivedForms.length}</strong>
-                  Archiv
-                </span>
-              </div>
+        {activeView === "tenant" && (
+        <div className="tenant-detail-view">
+          <div className="area-heading">
+            <div>
+              <p className="eyebrow">Mandantenverwaltung</p>
+              <h2>Benutzer und Zugriff</h2>
             </div>
-            <div className="panel-actions">
-              <button
-                disabled={!selectedProject}
-                title="Projekt umbenennen"
-                onClick={() => selectedProject && setRenameTarget({ type: "project", project: selectedProject })}
-              >
-                <Pencil size={16} />
-              </button>
-              <button disabled={!selectedProject} onClick={createForm}>
-                <Plus size={16} />
-                Formular erstellen
-              </button>
+          </div>
+          <section className="panel tenant-overview">
+            <div>
+              <p className="eyebrow">Mandant</p>
+              <h2>{selectedTenant?.name ?? "Kein Mandant"}</h2>
+              <p className="muted-line">
+                {selectedTenant
+                  ? "Benutzer dieses Mandanten gelten fuer alle darunterliegenden Projekte."
+                  : "Waehle links einen Mandanten aus."}
+              </p>
+            </div>
+            <div className="overview-stats" aria-label="Mandantenstatistik">
+              <span>
+                <strong>{selectedTenant?.projects?.length ?? 0}</strong>
+                Projekte
+              </span>
+              <span>
+                <strong>{tenantUsers.length}</strong>
+                Benutzer
+              </span>
             </div>
           </section>
 
           <section className="panel tenant-users-panel">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Mandant</p>
+                <p className="eyebrow">Mandantenebene</p>
                 <h2>Benutzerverwaltung</h2>
               </div>
               <span className="count-badge">{tenantUsers.length}</span>
@@ -389,13 +404,14 @@ export function DashboardPage() {
               </button>
             </div>
             {tenantUserError && <p className="status-message failed">{tenantUserError}</p>}
+            {tenantUserMessage && <p className="status-message passed">{tenantUserMessage}</p>}
             <div className="tenant-user-list">
               {tenantUsers.length === 0 && (
                 <div className="empty-state-box">
                   <Users size={22} />
                   <div>
                     <strong>Keine Mandantenbenutzer</strong>
-                    <span>Fuege Benutzer hinzu, die auf Projekte dieses Mandanten zugreifen duerfen.</span>
+                    <span>Fuege Benutzer hinzu, die auf alle Projekte dieses Mandanten zugreifen duerfen.</span>
                   </div>
                 </div>
               )}
@@ -407,6 +423,89 @@ export function DashboardPage() {
                   onRemove={() => void removeTenantUser(tenantUser)}
                 />
               ))}
+            </div>
+          </section>
+
+          <section className="panel tenant-projects-panel">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Mandant</p>
+                <h2>Projekte dieses Mandanten</h2>
+              </div>
+              <button disabled={!selectedTenantId} onClick={createProject}>
+                <Plus size={16} />
+                Projekt erstellen
+              </button>
+            </div>
+            <div className="tenant-project-list">
+              {(selectedTenant?.projects ?? []).length === 0 && (
+                <div className="empty-state-box">
+                  <FileText size={22} />
+                  <div>
+                    <strong>Keine Projekte</strong>
+                    <span>Erstelle ein Projekt, um Formulare fuer diesen Mandanten anzulegen.</span>
+                  </div>
+                </div>
+              )}
+              {(selectedTenant?.projects ?? []).map((project) => (
+                <button className="tenant-project-row" key={project.id} onClick={() => void selectProject(project)}>
+                  <span>
+                    <strong>{project.name}</strong>
+                    <small>{project.languages.join(", ")} - {project.forms.length} aktive Formulare</small>
+                  </span>
+                  <span className="status-pill muted">Oeffnen</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+        )}
+
+        {activeView === "project" && (
+        <div className="project-workspace">
+          <div className="area-heading">
+            <div>
+              <p className="eyebrow">Projektverwaltung</p>
+              <h2>Formulare im ausgewaehlten Projekt</h2>
+            </div>
+          </div>
+          <section className="panel project-overview">
+            <div className="project-heading">
+              <div>
+                <p className="eyebrow">Projekt</p>
+                <h2>{selectedProject?.name ?? "Kein Projekt"}</h2>
+                {selectedProject && <p className="muted-line">Sprachen: {selectedProject.languages.join(", ")}</p>}
+              </div>
+              <div className="overview-stats" aria-label="Projektstatistik">
+                <span>
+                  <strong>{selectedProject?.forms.length ?? 0}</strong>
+                  Aktiv
+                </span>
+                <span>
+                  <strong>{archivedForms.length}</strong>
+                  Archiv
+                </span>
+              </div>
+            </div>
+            <div className="panel-actions">
+              <button
+                disabled={!selectedProject}
+                title="Projekt umbenennen"
+                onClick={() => selectedProject && setRenameTarget({ type: "project", project: selectedProject })}
+              >
+                <Pencil size={16} />
+              </button>
+              <button
+                disabled={!selectedProject}
+                title="Projekt endgueltig loeschen"
+                onClick={() => selectedProject && setProjectDeleteTarget(selectedProject)}
+              >
+                <Trash2 size={16} />
+              </button>
+              <button disabled={!selectedProject} onClick={createForm}>
+                <Plus size={16} />
+                Formular erstellen
+              </button>
             </div>
           </section>
 
@@ -455,6 +554,7 @@ export function DashboardPage() {
             </div>
           </section>
         </div>
+        )}
       </div>
 
       {renameTarget && (
@@ -482,6 +582,13 @@ export function DashboardPage() {
           onConfirm={permanentlyDeleteForm}
         />
       )}
+      {projectDeleteTarget && (
+        <ConfirmProjectDeleteDialog
+          project={projectDeleteTarget}
+          onCancel={() => setProjectDeleteTarget(null)}
+          onConfirm={permanentlyDeleteProject}
+        />
+      )}
     </section>
   );
 }
@@ -497,12 +604,6 @@ function LoginLanding({ onLogin }: { onLogin: () => Promise<unknown> }) {
             Mandantenfaehige Formularverwaltung fuer Verwaltungsteams mit OIDC Login, Form.io Builder,
             Versionierung, Publikation und API-Zugriff.
           </p>
-          <div className="landing-actions">
-            <button onClick={() => void onLogin()}>
-              <KeyRound size={18} />
-              Mit OIDC anmelden
-            </button>
-          </div>
           <div className="trust-row" aria-label="Plattformmerkmale">
             <span>
               <Users size={18} />
@@ -530,7 +631,7 @@ function LoginLanding({ onLogin }: { onLogin: () => Promise<unknown> }) {
           </div>
           <button className="login-panel-button" onClick={() => void onLogin()}>
             <KeyRound size={18} />
-            Login starten
+            Mit OIDC anmelden
           </button>
           <div className="login-panel-meta">
             <span>OIDC Provider</span>
@@ -725,6 +826,48 @@ function ConfirmDeleteDialog({ formName, onCancel, onConfirm }: { formName: stri
           </button>
           <button disabled={deleting} type="button" onClick={confirm}>
             Endgueltig loeschen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmProjectDeleteDialog({
+  project,
+  onCancel,
+  onConfirm
+}: {
+  project: Project;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [deleting, setDeleting] = useState(false);
+
+  async function confirm() {
+    setDeleting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="dialog-backdrop" role="presentation">
+      <div className="rename-dialog danger-dialog" role="dialog" aria-modal="true" aria-labelledby="project-delete-dialog-title">
+        <h2 id="project-delete-dialog-title">Projekt endgueltig loeschen</h2>
+        <p>
+          Das Projekt <strong>{project.name}</strong> wird inklusive aller Formulare, Versionen,
+          Publikationen, Einladungen, Einreichungen, API-Keys und Projektbenutzer geloescht.
+        </p>
+        <p className="danger-note">Diese Aktion kann nicht rueckgaengig gemacht werden.</p>
+        <div className="dialog-actions">
+          <button className="secondary-button" type="button" onClick={onCancel}>
+            Abbrechen
+          </button>
+          <button className="danger-button" disabled={deleting} type="button" onClick={confirm}>
+            Projekt loeschen
           </button>
         </div>
       </div>

@@ -465,14 +465,34 @@ h2 {
 .dashboard-layout {
   align-items: start;
   display: grid;
-  gap: 20px;
+  gap: 28px;
   grid-template-columns: minmax(0, 1fr);
 }
 
+.tenant-detail-view {
+  border-left: 6px solid var(--swiss-red);
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding-left: 18px;
+}
+
 .project-workspace {
+  border-top: 1px solid var(--swiss-border-strong);
   display: grid;
   gap: 20px;
   min-width: 0;
+  padding-top: 22px;
+}
+
+.area-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.area-heading h2 {
+  margin-bottom: 0;
 }
 
 .panel,
@@ -550,7 +570,8 @@ h2 {
   font-size: 13px;
 }
 
-.project-overview {
+.project-overview,
+.tenant-overview {
   align-items: center;
   display: flex;
   gap: 18px;
@@ -707,6 +728,46 @@ summary small {
   gap: 8px;
 }
 
+.tenant-projects-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.tenant-project-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tenant-project-row {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--swiss-border);
+  color: var(--swiss-text);
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 64px;
+  padding: 12px 14px;
+  text-align: left;
+  width: 100%;
+}
+
+.tenant-project-row:hover {
+  background: var(--swiss-soft);
+  border-color: var(--swiss-border-strong);
+}
+
+.tenant-project-row strong,
+.tenant-project-row small {
+  display: block;
+}
+
+.tenant-project-row small {
+  color: var(--swiss-muted);
+  font-size: 13px;
+  margin-top: 3px;
+}
+
 .tenant-user-row {
   align-items: center;
   background: #ffffff;
@@ -825,6 +886,12 @@ summary small {
   background: #fff0f0;
   border-color: var(--swiss-red);
   color: var(--swiss-red-dark);
+}
+
+.status-message.passed {
+  background: #eff8f0;
+  border-color: #9bc89f;
+  color: #14552a;
 }
 
 .system-grid {
@@ -1059,6 +1126,27 @@ summary small {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.danger-dialog {
+  border-top: 6px solid var(--swiss-red);
+}
+
+.danger-note {
+  background: #fff0f0;
+  border: 1px solid var(--swiss-red);
+  color: var(--swiss-red-dark);
+  font-weight: 800;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.danger-button {
+  background: var(--swiss-red-dark);
+}
+
+.danger-button:hover {
+  background: var(--swiss-red);
 }
 
 .actions button {

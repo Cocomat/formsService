@@ -1,4 +1,4 @@
-import { Activity, LayoutDashboard, LogIn, LogOut } from "lucide-react";
+import { Activity, LayoutDashboard, LogOut } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 import { useAuthUser } from "../auth";
@@ -21,10 +21,12 @@ export function AppShell() {
         </div>
         <div className="auth-box">
           <small>{user?.profile.email ?? "Nicht angemeldet"}</small>
-          <button className="secondary-button" onClick={user ? logout : login}>
-            {user ? <LogOut size={16} /> : <LogIn size={16} />}
-            {user ? "Logout" : "Login"}
-          </button>
+          {user && (
+            <button className="secondary-button" onClick={logout}>
+              <LogOut size={16} />
+              Logout
+            </button>
+          )}
         </div>
       </header>
       {user && (
