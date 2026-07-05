@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { AuthRequest } from "../auth/auth.types";
+import { AuthRequest, auditActor } from "../auth/auth.types";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { CreateFormDto, ImportFormDto, UpdateDraftDto, UpdateFormDto } from "./forms.dto";
@@ -27,7 +27,7 @@ export class FormsController {
   @Post()
   @Roles("service-admin", "project-admin", "form-editor")
   create(@Param("projectId") projectId: string, @Body() dto: CreateFormDto, @Req() req: AuthRequest) {
-    return this.forms.create(projectId, dto, req.user?.subject);
+    return this.forms.create(projectId, dto, auditActor(req.user));
   }
 
   @Get(":formId/export")
@@ -39,7 +39,7 @@ export class FormsController {
   @Post(":formId/import")
   @Roles("service-admin", "project-admin", "form-editor")
   import(@Param("projectId") projectId: string, @Param("formId") formId: string, @Body() dto: ImportFormDto, @Req() req: AuthRequest) {
-    return this.forms.importDraft(projectId, formId, dto, req.user?.subject);
+    return this.forms.importDraft(projectId, formId, dto, auditActor(req.user));
   }
 
   @Get(":formId/versions/published")
@@ -56,7 +56,7 @@ export class FormsController {
     @Param("versionId") versionId: string,
     @Req() req: AuthRequest
   ) {
-    return this.forms.restoreVersion(projectId, formId, versionId, req.user?.subject);
+    return this.forms.restoreVersion(projectId, formId, versionId, auditActor(req.user));
   }
 
   @Get(":formId")
@@ -67,36 +67,36 @@ export class FormsController {
   @Patch(":formId")
   @Roles("service-admin", "project-admin", "form-editor")
   update(@Param("projectId") projectId: string, @Param("formId") formId: string, @Body() dto: UpdateFormDto, @Req() req: AuthRequest) {
-    return this.forms.update(projectId, formId, dto, req.user?.subject);
+    return this.forms.update(projectId, formId, dto, auditActor(req.user));
   }
 
   @Patch(":formId/draft")
   @Roles("service-admin", "project-admin", "form-editor")
   updateDraft(@Param("projectId") projectId: string, @Param("formId") formId: string, @Body() dto: UpdateDraftDto, @Req() req: AuthRequest) {
-    return this.forms.updateDraft(projectId, formId, dto, req.user?.subject);
+    return this.forms.updateDraft(projectId, formId, dto, auditActor(req.user));
   }
 
   @Post(":formId/duplicate")
   @Roles("service-admin", "project-admin", "form-editor")
   duplicate(@Param("projectId") projectId: string, @Param("formId") formId: string, @Req() req: AuthRequest) {
-    return this.forms.duplicate(projectId, formId, req.user?.subject);
+    return this.forms.duplicate(projectId, formId, auditActor(req.user));
   }
 
   @Post(":formId/publish")
   @Roles("service-admin", "project-admin")
   publish(@Param("projectId") projectId: string, @Param("formId") formId: string, @Req() req: AuthRequest) {
-    return this.forms.publish(projectId, formId, req.user?.subject);
+    return this.forms.publish(projectId, formId, auditActor(req.user));
   }
 
   @Delete(":formId/permanent")
   @Roles("service-admin", "project-admin")
   permanentlyDelete(@Param("projectId") projectId: string, @Param("formId") formId: string, @Req() req: AuthRequest) {
-    return this.forms.permanentlyDelete(projectId, formId, req.user?.subject);
+    return this.forms.permanentlyDelete(projectId, formId, auditActor(req.user));
   }
 
   @Delete(":formId")
   @Roles("service-admin", "project-admin")
   archive(@Param("projectId") projectId: string, @Param("formId") formId: string, @Req() req: AuthRequest) {
-    return this.forms.archive(projectId, formId, req.user?.subject);
+    return this.forms.archive(projectId, formId, auditActor(req.user));
   }
 }

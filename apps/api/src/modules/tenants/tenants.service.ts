@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { LifecycleStatus } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
+import { AuthUser } from "../auth/auth.types";
 import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateTenantDto, UpdateTenantDto, UpdateTenantUserDto, UpsertTenantUserDto } from "./tenants.dto";
@@ -72,7 +73,7 @@ export class TenantsService {
     });
   }
 
-  async listAudit(tenantId: string) {
+  async listAudit(tenantId: string, currentUser?: AuthUser) {
     await this.ensureTenant(tenantId);
     const projects = await this.prisma.project.findMany({
       where: { tenantId },
@@ -104,6 +105,10 @@ export class TenantsService {
         })
       : [];
     const actorNames = new Map<string, string>();
+    if (currentUser?.email) {
+      actorNames.set(currentUser.email, currentUser.email);
+      actorNames.set(currentUser.subject, currentUser.email);
+    }
     tenantUsers.forEach((user) => {
       actorNames.set(user.email, user.email);
       if (user.subject) actorNames.set(user.subject, user.email);

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { AuthRequest } from "../auth/auth.types";
+import { AuthRequest, auditActor } from "../auth/auth.types";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
 import { CreateInvitationDto } from "./invitations.dto";
@@ -24,7 +24,7 @@ export class InvitationsController {
   @UseGuards(AuthGuard("jwt"), RolesGuard)
   @Roles("service-admin", "project-admin", "form-editor")
   create(@Param("projectId") projectId: string, @Param("formId") formId: string, @Body() dto: CreateInvitationDto, @Req() req: AuthRequest) {
-    return this.invitations.create(projectId, formId, dto, req.user?.subject);
+    return this.invitations.create(projectId, formId, dto, auditActor(req.user));
   }
 
   @Patch("public/invitations/:token/opened")

@@ -11,3 +11,7 @@ export type AuthRequest = Request & {
     apiKeyId: string;
   };
 };
+
+export function auditActor(user?: AuthUser) {
+  return user?.email ?? user?.subject;
+}

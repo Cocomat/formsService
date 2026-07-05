@@ -51,6 +51,7 @@ export function DashboardPage() {
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FormSummary | null>(null);
   const [projectDeleteTarget, setProjectDeleteTarget] = useState<Project | null>(null);
+  const [generatedApiKey, setGeneratedApiKey] = useState<{ key: string; name: string } | null>(null);
   const selectedTenant = useMemo(() => {
     return tenants.find((tenant) => tenant.id === selectedTenantId) ?? null;
   }, [tenants, selectedTenantId]);
@@ -267,6 +268,16 @@ export function DashboardPage() {
       })
     });
     await load(selectedProject.id, selectedProject.tenantId, "project");
+  }
+
+  async function createProjectApiKey() {
+    if (!selectedProject) return;
+    const key = await api<{ key: string; name: string }>(`/projects/${selectedProject.id}/api-keys`, {
+      method: "POST",
+      body: JSON.stringify({ name: `Key ${new Date().toLocaleDateString()}` })
+    });
+    setGeneratedApiKey(key);
+    await loadTenantAudit(selectedProject.tenantId);
   }
 
   async function addTenantUser() {
@@ -586,6 +597,10 @@ export function DashboardPage() {
                 <Upload size={16} />
                 JSON importieren
               </button>
+              <button className="secondary-button" disabled={!selectedProject} onClick={createProjectApiKey}>
+                <KeyRound size={16} />
+                API-Key erstellen
+              </button>
             </div>
           </section>
 
@@ -681,6 +696,12 @@ export function DashboardPage() {
           onConfirm={permanentlyDeleteProject}
         />
       )}
+      {generatedApiKey && (
+        <ApiKeyDialog
+          apiKey={generatedApiKey}
+          onClose={() => setGeneratedApiKey(null)}
+        />
+      )}
     </section>
   );
 }
@@ -745,11 +766,91 @@ function LoginLanding({ onLogin }: { onLogin: () => Promise<unknown> }) {
           <span>Einreichungen anzeigen, exportieren oder via API konsumieren.</span>
         </article>
       </div>
+      <div className="landing-product-overview">
+        <div className="landing-section-heading">
+          <p className="eyebrow">Produktumfang</p>
+          <h2>Eine produktiv nutzbare Basisplattform fuer digitale Formulare</h2>
+          <p>
+            Der FormularService V1 verbindet Mandantenverwaltung, Formularerstellung, Publikation,
+            Einreichungsverwaltung und API-Zugriff in einer schlanken Betriebsumgebung.
+          </p>
+        </div>
+        <div className="landing-product-grid">
+          <article>
+            <span className="landing-product-icon"><Users size={20} /></span>
+            <h3>Mandanten & Rollen</h3>
+            <p>Mandanten, Projekte und Benutzer werden klar getrennt. Rollen steuern Zugriff auf Verwaltung, Bearbeitung und Auswertung.</p>
+            <ul>
+              <li>Mandanten- und Projektstruktur</li>
+              <li>Benutzerverwaltung pro Mandant</li>
+              <li>OIDC Login und rollenbasierte Rechte</li>
+            </ul>
+          </article>
+          <article>
+            <span className="landing-product-icon"><FileText size={20} /></span>
+            <h3>Formulare & Versionen</h3>
+            <p>Formulare werden mit Form.io erstellt, als Draft bearbeitet und kontrolliert publiziert.</p>
+            <ul>
+              <li>Form.io Builder</li>
+              <li>Draft und Published Versionen</li>
+              <li>Versionsverlauf mit Wiederherstellung</li>
+            </ul>
+          </article>
+          <article>
+            <span className="landing-product-icon"><Send size={20} /></span>
+            <h3>Publikation & Einreichungen</h3>
+            <p>Formulare lassen sich oeffentlich oder per Einladung bereitstellen. Einreichungen bleiben der verwendeten Version zugeordnet.</p>
+            <ul>
+              <li>Stabiler Public Link</li>
+              <li>E-Mail Einladungen</li>
+              <li>Einreichungsansicht und CSV Export</li>
+            </ul>
+          </article>
+          <article>
+            <span className="landing-product-icon"><KeyRound size={20} /></span>
+            <h3>API & Betrieb</h3>
+            <p>Projektbezogene API-Keys, Swagger-Dokumentation, Health Checks und Audit Trail schaffen eine belastbare Grundlage.</p>
+            <ul>
+              <li>REST API und Swagger</li>
+              <li>Projekt-API-Keys</li>
+              <li>Audit Trail und Teststatus</li>
+            </ul>
+          </article>
+        </div>
+      </div>
     </section>
   );
 }
 
 function TenantAuditTable({ logs }: { logs: AuditLog[] }) {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredLogs = useMemo(() => {
+    if (!normalizedQuery) return logs;
+    return logs.filter((log) => {
+      const values = [
+        formatDateTime(log.createdAt),
+        auditActionLabel(log.action),
+        auditFormName(log),
+        log.project?.name,
+        log.actorName,
+        log.actor,
+        auditDetail(log),
+        auditEntityLabel(log.entity)
+      ];
+      return values.some((value) => value?.toLowerCase().includes(normalizedQuery));
+    });
+  }, [logs, normalizedQuery]);
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const visibleLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [logs, query]);
+
   if (logs.length === 0) {
     return (
       <div className="empty-state-box">
@@ -763,40 +864,77 @@ function TenantAuditTable({ logs }: { logs: AuditLog[] }) {
   }
 
   return (
-    <div className="tenant-audit-table-wrap">
-      <table className="tenant-audit-table">
-        <thead>
-          <tr>
-            <th>Zeitpunkt</th>
-            <th>Aktion</th>
-            <th>Formular</th>
-            <th>Bereich</th>
-            <th>Benutzer</th>
-            <th>Details</th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map((log) => (
-            <tr key={log.id}>
-              <td>{formatDateTime(log.createdAt)}</td>
-              <td>
-                <span className="status-pill muted">{auditActionLabel(log.action)}</span>
-              </td>
-              <td>
-                <strong>{auditFormName(log) ?? "-"}</strong>
-                {auditFormName(log) && <small>Formular</small>}
-              </td>
-              <td>
-                <strong>{log.project?.name ?? auditEntityLabel(log.entity)}</strong>
-                {log.project && <small>Projekt</small>}
-              </td>
-              <td>{log.actorName ?? log.actor ?? "System"}</td>
-              <td>{auditDetail(log)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="tenant-audit-controls">
+        <label>
+          <span>Suche</span>
+          <input
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Aktion, Formular, Benutzer, Projekt..."
+            type="search"
+            value={query}
+          />
+        </label>
+        <span className="audit-result-count">
+          {filteredLogs.length} von {logs.length} Eintraegen
+        </span>
+      </div>
+
+      {filteredLogs.length === 0 ? (
+        <div className="empty-state-box compact">
+          <Activity size={18} />
+          <span>Keine Audit-Eintraege zur Suche gefunden.</span>
+        </div>
+      ) : (
+        <>
+          <div className="tenant-audit-table-wrap">
+            <table className="tenant-audit-table">
+              <thead>
+                <tr>
+                  <th>Zeitpunkt</th>
+                  <th>Aktion</th>
+                  <th>Formular</th>
+                  <th>Bereich</th>
+                  <th>Benutzer</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td>{formatDateTime(log.createdAt)}</td>
+                    <td>
+                      <span className="status-pill muted">{auditActionLabel(log.action)}</span>
+                    </td>
+                    <td>
+                      <strong>{auditFormName(log) ?? "-"}</strong>
+                      {auditFormName(log) && <small>Formular</small>}
+                    </td>
+                    <td>
+                      <strong>{log.project?.name ?? auditEntityLabel(log.entity)}</strong>
+                      {log.project && <small>Projekt</small>}
+                    </td>
+                    <td>{log.actorName ?? log.actor ?? "System"}</td>
+                    <td>{auditDetail(log)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="tenant-audit-pagination">
+            <button className="secondary-button" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+              Zurueck
+            </button>
+            <span>
+              Seite {currentPage} von {totalPages}
+            </span>
+            <button className="secondary-button" disabled={currentPage >= totalPages} onClick={() => setPage((value) => Math.min(totalPages, value + 1))}>
+              Weiter
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -1030,14 +1168,6 @@ function FormRow({
     });
   }
 
-  async function apiKey() {
-    const key = await api<{ key: string }>(`/projects/${projectId}/api-keys`, {
-      method: "POST",
-      body: JSON.stringify({ name: `Key ${new Date().toLocaleDateString()}` })
-    });
-    window.prompt("API-Key", key.key);
-  }
-
   async function exportJson() {
     const exported = await api<FormExport>(`/projects/${projectId}/forms/${form.id}/export`);
     await downloadJson(`${slugify(exported.name ?? form.name)}.json`, exported);
@@ -1094,7 +1224,6 @@ function FormRow({
           <button title="JSON exportieren" onClick={exportJson}><Download size={16} /></button>
           <button title="JSON importieren" onClick={importJson}><Upload size={16} /></button>
           <button title="Duplizieren" onClick={duplicate}><Copy size={16} /></button>
-          <button title="API-Key" onClick={apiKey}><KeyRound size={16} /></button>
           <button title="Archivieren" onClick={archive}><Archive size={16} /></button>
         </div>
       </div>
@@ -1145,6 +1274,39 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function ApiKeyDialog({ apiKey, onClose }: { apiKey: { key: string; name: string }; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyKey() {
+    await navigator.clipboard.writeText(apiKey.key);
+    setCopied(true);
+  }
+
+  return (
+    <div className="dialog-backdrop">
+      <div className="rename-dialog api-key-dialog" role="dialog" aria-modal="true" aria-labelledby="api-key-dialog-title">
+        <h2 id="api-key-dialog-title">API-Key erstellt</h2>
+        <p className="muted-line">
+          Kopiere den API-Key jetzt. Aus Sicherheitsgruenden wird er spaeter nicht erneut im Klartext angezeigt.
+        </p>
+        <label>
+          API-Key
+          <textarea readOnly value={apiKey.key} />
+        </label>
+        <div className="dialog-actions">
+          <button type="button" className="secondary-button" onClick={copyKey}>
+            <Copy size={16} />
+            {copied ? "Kopiert" : "Kopieren"}
+          </button>
+          <button type="button" onClick={onClose}>
+            Schliessen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ArchivedFormRow({ form, onDelete }: { form: FormSummary; onDelete: () => void }) {
