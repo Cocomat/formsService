@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "steps": {
+    "build": {
+      "commands": [
+        "...",
+        "pnpm --filter @formularservice/web build"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "pnpm --filter @formularservice/web start"
+  }
+}
