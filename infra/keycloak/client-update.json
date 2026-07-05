@@ -1,10 +1,12 @@
 {
   "redirectUris": [
     "http://localhost:5173/*",
-    "http://127.0.0.1:5173/*"
+    "http://127.0.0.1:5173/*",
+    "https://formularservice-web-production.up.railway.app/*"
   ],
   "webOrigins": [
     "http://localhost:5173",
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173",
+    "https://formularservice-web-production.up.railway.app"
   ]
 }
