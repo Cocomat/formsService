@@ -3,7 +3,7 @@ import { LifecycleStatus } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { CreateTenantDto, UpdateTenantUserDto, UpsertTenantUserDto } from "./tenants.dto";
+import { CreateTenantDto, UpdateTenantDto, UpdateTenantUserDto, UpsertTenantUserDto } from "./tenants.dto";
 
 @Injectable()
 export class TenantsService {
@@ -48,11 +48,114 @@ export class TenantsService {
     return tenant;
   }
 
+  async update(tenantId: string, dto: UpdateTenantDto, actor?: string) {
+    const existing = await this.ensureTenant(tenantId);
+    const tenant = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { name: dto.name }
+    });
+    await this.audit.record({
+      actor,
+      action: "tenant.updated",
+      entity: "Tenant",
+      entityId: tenant.id,
+      metadata: { previousName: existing.name, name: tenant.name }
+    });
+    return tenant;
+  }
+
   async listUsers(tenantId: string) {
     await this.ensureTenant(tenantId);
     return this.prisma.tenantUser.findMany({
       where: { tenantId },
       orderBy: [{ role: "asc" }, { email: "asc" }]
+    });
+  }
+
+  async listAudit(tenantId: string) {
+    await this.ensureTenant(tenantId);
+    const projects = await this.prisma.project.findMany({
+      where: { tenantId },
+      select: { id: true }
+    });
+    const projectIds = projects.map((project) => project.id);
+    const auditLogs = await this.prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { projectId: { in: projectIds } },
+          { entity: "Tenant", entityId: tenantId },
+          { metadata: { path: ["tenantId"], equals: tenantId } }
+        ]
+      },
+      include: {
+        project: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100
+    });
+    const actorKeys = auditLogs.map((log) => log.actor).filter((actor): actor is string => Boolean(actor));
+    const tenantUsers = actorKeys.length
+      ? await this.prisma.tenantUser.findMany({
+          where: {
+            tenantId,
+            OR: [{ subject: { in: actorKeys } }, { email: { in: actorKeys } }]
+          },
+          select: { email: true, subject: true }
+        })
+      : [];
+    const actorNames = new Map<string, string>();
+    tenantUsers.forEach((user) => {
+      actorNames.set(user.email, user.email);
+      if (user.subject) actorNames.set(user.subject, user.email);
+    });
+
+    const directFormIds = auditLogs
+      .filter((log) => log.entity === "Form" && log.entityId)
+      .map((log) => log.entityId as string);
+    const metadataFormIds = auditLogs
+      .map((log) => metadataString(log.metadata, "formId"))
+      .filter((formId): formId is string => Boolean(formId));
+    const versionIds = auditLogs
+      .filter((log) => log.entity === "FormVersion" && log.entityId)
+      .map((log) => log.entityId as string);
+    const metadataVersionIds = auditLogs
+      .map((log) => metadataString(log.metadata, "formVersionId"))
+      .filter((versionId): versionId is string => Boolean(versionId));
+
+    const formVersions = [...versionIds, ...metadataVersionIds].length
+      ? await this.prisma.formVersion.findMany({
+          where: { id: { in: [...versionIds, ...metadataVersionIds] } },
+          select: { id: true, formId: true, form: { select: { id: true, name: true } } }
+        })
+      : [];
+    const versionForms = new Map(formVersions.map((version) => [version.id, version.form]));
+    const formIds = Array.from(new Set([
+      ...directFormIds,
+      ...metadataFormIds,
+      ...formVersions.map((version) => version.formId)
+    ]));
+    const forms = formIds.length
+      ? await this.prisma.form.findMany({
+          where: { id: { in: formIds } },
+          select: { id: true, name: true }
+        })
+      : [];
+    const formNames = new Map(forms.map((form) => [form.id, form]));
+
+    return auditLogs.map((log) => {
+      const formId = log.entity === "Form"
+        ? log.entityId
+        : metadataString(log.metadata, "formId");
+      const versionFormId = log.entity === "FormVersion"
+        ? log.entityId
+        : metadataString(log.metadata, "formVersionId");
+      const form = (formId ? formNames.get(formId) : undefined)
+        ?? (versionFormId ? versionForms.get(versionFormId) : undefined);
+      return {
+        ...log,
+        actorName: log.actor ? actorNames.get(log.actor) ?? log.actor : null,
+        form: form ?? null
+      };
     });
   }
 
@@ -123,4 +226,10 @@ export class TenantsService {
     if (!tenant) throw new NotFoundException("Tenant not found");
     return tenant;
   }
+}
+
+function metadataString(metadata: unknown, key: string) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" ? value : null;
 }

@@ -30,6 +30,20 @@ export class UpdateFormDto {
   name!: string;
 }
 
+export class ImportFormDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsObject()
+  schema?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  translations?: Record<string, unknown>;
+}
+
 export class SubmitFormDto {
   @IsObject()
   data!: Record<string, unknown>;

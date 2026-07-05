@@ -3,7 +3,7 @@ import { FormVersionStatus, LifecycleStatus, Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { CreateFormDto, SubmitFormDto, UpdateDraftDto, UpdateFormDto } from "./forms.dto";
+import { CreateFormDto, ImportFormDto, SubmitFormDto, UpdateDraftDto, UpdateFormDto } from "./forms.dto";
 
 @Injectable()
 export class FormsService {
@@ -82,6 +82,98 @@ export class FormsService {
     return version;
   }
 
+  async export(projectId: string, formId: string) {
+    const form = await this.get(projectId, formId);
+    const version = form.versions.find((item) => item.status === FormVersionStatus.DRAFT) ?? form.versions[0];
+    if (!version) throw new NotFoundException("Form version not found");
+
+    return {
+      format: "formularservice.form",
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      name: form.name,
+      schema: version.schema,
+      translations: version.translations ?? {}
+    };
+  }
+
+  async importDraft(projectId: string, formId: string, dto: ImportFormDto, actor?: string) {
+    const schema = resolveImportedSchema(dto);
+    const version = await this.updateDraft(projectId, formId, {
+      schema,
+      translations: dto.translations ?? {}
+    }, actor);
+    if (dto.name) {
+      await this.update(projectId, formId, { name: dto.name }, actor);
+    }
+    await this.audit.record({
+      projectId,
+      actor,
+      action: "form.imported",
+      entity: "FormVersion",
+      entityId: version.id,
+      metadata: { formId, name: dto.name }
+    });
+    return version;
+  }
+
+  async listPublishedVersions(projectId: string, formId: string) {
+    await this.get(projectId, formId);
+    return this.prisma.formVersion.findMany({
+      where: {
+        formId,
+        publishedAt: { not: null },
+        status: { in: [FormVersionStatus.PUBLISHED, FormVersionStatus.ARCHIVED] }
+      },
+      orderBy: { version: "desc" }
+    });
+  }
+
+  async restoreVersion(projectId: string, formId: string, versionId: string, actor?: string) {
+    await this.get(projectId, formId);
+    const source = await this.prisma.formVersion.findFirst({
+      where: {
+        id: versionId,
+        formId,
+        publishedAt: { not: null },
+        status: { in: [FormVersionStatus.PUBLISHED, FormVersionStatus.ARCHIVED] }
+      }
+    });
+    if (!source) throw new NotFoundException("Published form version not found");
+
+    const latest = await this.prisma.formVersion.findFirst({ where: { formId }, orderBy: { version: "desc" } });
+    const versionNumber = latest?.status === FormVersionStatus.DRAFT ? latest.version : (latest?.version ?? 0) + 1;
+    const version = latest?.status === FormVersionStatus.DRAFT
+      ? await this.prisma.formVersion.update({
+          where: { id: latest.id },
+          data: {
+            schema: source.schema as Prisma.InputJsonObject,
+            translations: (source.translations ?? {}) as Prisma.InputJsonObject,
+            createdBy: actor
+          }
+        })
+      : await this.prisma.formVersion.create({
+          data: {
+            formId,
+            version: versionNumber,
+            status: FormVersionStatus.DRAFT,
+            schema: source.schema as Prisma.InputJsonObject,
+            translations: (source.translations ?? {}) as Prisma.InputJsonObject,
+            createdBy: actor
+          }
+        });
+
+    await this.audit.record({
+      projectId,
+      actor,
+      action: "form.version_restored",
+      entity: "FormVersion",
+      entityId: version.id,
+      metadata: { formId, sourceVersionId: source.id, sourceVersion: source.version }
+    });
+    return version;
+  }
+
   async update(projectId: string, formId: string, dto: UpdateFormDto, actor?: string) {
     await this.get(projectId, formId);
     const form = await this.prisma.form.update({
@@ -115,20 +207,39 @@ export class FormsService {
     const draft = await this.prisma.formVersion.findFirst({ where: { formId, status: FormVersionStatus.DRAFT }, orderBy: { version: "desc" } });
     if (!draft) throw new NotFoundException("No draft version to publish");
 
-    await this.prisma.formVersion.updateMany({
-      where: { formId, status: FormVersionStatus.PUBLISHED },
-      data: { status: FormVersionStatus.ARCHIVED }
-    });
-    const published = await this.prisma.formVersion.update({
-      where: { id: draft.id },
-      data: { status: FormVersionStatus.PUBLISHED, publishedAt: new Date() }
-    });
-    const publication = await this.prisma.formPublication.create({
-      data: {
-        formId,
-        formVersionId: published.id,
-        publicSlug: randomUUID()
-      }
+    const { published, publication } = await this.prisma.$transaction(async (tx) => {
+      await tx.formVersion.updateMany({
+        where: { formId, status: FormVersionStatus.PUBLISHED },
+        data: { status: FormVersionStatus.ARCHIVED }
+      });
+      const published = await tx.formVersion.update({
+        where: { id: draft.id },
+        data: { status: FormVersionStatus.PUBLISHED, publishedAt: new Date() }
+      });
+      const existingPublication = await tx.formPublication.findFirst({
+        where: { formId, active: true },
+        orderBy: { createdAt: "asc" }
+      }) ?? await tx.formPublication.findFirst({
+        where: { formId },
+        orderBy: { createdAt: "asc" }
+      });
+      const publication = existingPublication
+        ? await tx.formPublication.update({
+            where: { id: existingPublication.id },
+            data: { formVersionId: published.id, active: true }
+          })
+        : await tx.formPublication.create({
+            data: {
+              formId,
+              formVersionId: published.id,
+              publicSlug: randomUUID()
+            }
+          });
+      await tx.formPublication.updateMany({
+        where: { formId, id: { not: publication.id } },
+        data: { active: false }
+      });
+      return { published, publication };
     });
     await this.audit.record({ projectId, actor, action: "form.published", entity: "FormVersion", entityId: published.id });
     return { version: published, publication };
@@ -207,4 +318,14 @@ export class FormsService {
 
 function asJson(value: Record<string, unknown>): Prisma.InputJsonObject {
   return value as Prisma.InputJsonObject;
+}
+
+function resolveImportedSchema(dto: ImportFormDto): Record<string, unknown> {
+  if (dto.schema && typeof dto.schema === "object") {
+    return dto.schema;
+  }
+  if (Array.isArray((dto as Record<string, unknown>).components)) {
+    return dto as Record<string, unknown>;
+  }
+  throw new BadRequestException("Import JSON must contain a schema or Form.io components");
 }

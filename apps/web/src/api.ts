@@ -29,6 +29,20 @@ export type TenantUser = {
   createdAt: string;
 };
 
+export type AuditLog = {
+  id: string;
+  projectId?: string | null;
+  actor?: string | null;
+  action: string;
+  entity: string;
+  entityId?: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  actorName?: string | null;
+  form?: { id: string; name: string } | null;
+  project?: { id: string; name: string } | null;
+};
+
 export type FormSummary = {
   id: string;
   name: string;
@@ -44,6 +58,18 @@ export type FormVersion = {
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   schema: Record<string, unknown>;
   translations: Record<string, unknown>;
+  createdAt?: string;
+  createdBy?: string;
+  publishedAt?: string | null;
+};
+
+export type FormExport = {
+  format?: string;
+  formatVersion?: number;
+  exportedAt?: string;
+  name?: string;
+  schema: Record<string, unknown>;
+  translations?: Record<string, unknown>;
 };
 
 export type Submission = {

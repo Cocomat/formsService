@@ -13,6 +13,8 @@ export function FormEditorPage() {
   const [renaming, setRenaming] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [persistedSchema, setPersistedSchema] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const draft = useMemo<FormVersion | undefined>(() => {
@@ -24,10 +26,19 @@ export function FormEditorPage() {
     if (!projectId || !formId) return;
     api<FormSummary>(`/projects/${projectId}/forms/${formId}`).then((data) => {
       const versions = data.versions ?? [];
+      const initialSchema = (versions.find((version) => version.status === "DRAFT") ?? versions[0])?.schema ?? null;
       setForm(data);
-      setSchema((versions.find((version) => version.status === "DRAFT") ?? versions[0])?.schema ?? null);
+      setSchema(initialSchema);
+      setPersistedSchema(initialSchema ? JSON.stringify(initialSchema) : null);
+      setDirty(false);
     });
   }, [projectId, formId]);
+
+  function updateSchema(nextSchema: Record<string, unknown>) {
+    setSchema(nextSchema);
+    setSaved(false);
+    setDirty(JSON.stringify(nextSchema) !== persistedSchema);
+  }
 
   async function save() {
     if (!projectId || !formId || !schema || saving) return;
@@ -43,6 +54,8 @@ export function FormEditorPage() {
         return current && { ...current, versions: [next, ...versions.filter((version) => version.id !== next.id)] };
       });
       setSaved(true);
+      setPersistedSchema(JSON.stringify(schema));
+      setDirty(false);
       window.setTimeout(() => navigate("/"), 900);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Formular konnte nicht gespeichert werden.");
@@ -68,6 +81,9 @@ export function FormEditorPage() {
         <div>
           <p className="eyebrow">Form.io Builder</p>
           <h1>{form?.name}</h1>
+          <div className="builder-save-state" role="status">
+            {dirty ? "Ungespeicherte Draft-Aenderungen" : "Draft ist gespeichert"}
+          </div>
         </div>
         <div className="panel-actions">
           <Link className="button secondary-button" to="/">
@@ -79,7 +95,7 @@ export function FormEditorPage() {
           </button>
           <button disabled={saving} onClick={save}>
             <Save size={16} />
-            {saving ? "Speichert..." : "Speichern"}
+            {saving ? "Speichert..." : "Draft speichern"}
           </button>
         </div>
       </header>
@@ -90,7 +106,7 @@ export function FormEditorPage() {
       )}
       {saveError && <p className="status-message failed">{saveError}</p>}
       <div className="builder-surface">
-        <FormioBuilder key={draft?.id ?? formId} schema={schema} onChange={setSchema} />
+        <FormioBuilder key={draft?.id ?? formId} schema={schema} onChange={updateSchema} />
       </div>
       {renaming && form && (
         <RenameDialog

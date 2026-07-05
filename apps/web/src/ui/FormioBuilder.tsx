@@ -2,8 +2,15 @@ import { FormBuilder } from "@formio/js";
 import { useEffect, useRef } from "react";
 
 type FormioBuilderInstance = InstanceType<typeof FormBuilder> & {
+  _form?: Record<string, unknown>;
+  formio?: {
+    form?: Record<string, unknown>;
+    on?: (event: string, handler: () => void) => void;
+    off?: (event: string, handler: () => void) => void;
+  };
   form?: Record<string, unknown>;
   instance?: {
+    _form?: Record<string, unknown>;
     form?: Record<string, unknown>;
     on?: (event: string, handler: () => void) => void;
     off?: (event: string, handler: () => void) => void;
@@ -13,6 +20,10 @@ type FormioBuilderInstance = InstanceType<typeof FormBuilder> & {
   off?: (event: string, handler: () => void) => void;
   ready?: Promise<unknown>;
   destroy?: (all?: boolean) => void;
+  webform?: {
+    _form?: Record<string, unknown>;
+    form?: Record<string, unknown>;
+  };
 };
 
 type FormioBuilderProps = {
@@ -29,6 +40,29 @@ const builderOptions = {
   }
 };
 
+const builderChangeEvents = [
+  "addComponent",
+  "cancelComponent",
+  "change",
+  "componentChange",
+  "editComponent",
+  "removeComponent",
+  "saveComponent",
+  "updateComponent"
+];
+
+function getBuilderSchema(builder: FormioBuilderInstance) {
+  return (
+    builder.instance?.form ??
+    builder.instance?._form ??
+    builder.form ??
+    builder._form ??
+    builder.webform?.form ??
+    builder.webform?._form ??
+    builder.formio?.form
+  );
+}
+
 export function FormioBuilder({ schema, onChange }: FormioBuilderProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const onChangeRef = useRef(onChange);
@@ -42,19 +76,38 @@ export function FormioBuilder({ schema, onChange }: FormioBuilderProps) {
 
     const builder = new FormBuilder(hostRef.current, schema, builderOptions) as FormioBuilderInstance;
     const emitChange = () => {
-      const nextSchema = builder.instance?.form ?? builder.form;
-      if (nextSchema) onChangeRef.current(structuredClone(nextSchema));
+      window.setTimeout(() => {
+        const nextSchema = getBuilderSchema(builder);
+        if (nextSchema) onChangeRef.current(structuredClone(nextSchema));
+      }, 25);
+    };
+    const bindEvents = () => {
+      builderChangeEvents.forEach((event) => {
+        builder.off?.(event, emitChange);
+        builder.instance?.off?.(event, emitChange);
+        builder.formio?.off?.(event, emitChange);
+        builder.on?.(event, emitChange);
+        builder.instance?.on?.(event, emitChange);
+        builder.formio?.on?.(event, emitChange);
+      });
     };
 
-    void builder.ready?.then(() => {
-      builder.on?.("change", emitChange);
-      builder.instance?.on?.("change", emitChange);
-      emitChange();
-    });
+    bindEvents();
+    emitChange();
+
+    void builder.ready
+      ?.then(() => {
+        bindEvents();
+        emitChange();
+      })
+      .catch(() => emitChange());
 
     return () => {
-      builder.off?.("change", emitChange);
-      builder.instance?.off?.("change", emitChange);
+      builderChangeEvents.forEach((event) => {
+        builder.off?.(event, emitChange);
+        builder.instance?.off?.(event, emitChange);
+        builder.formio?.off?.(event, emitChange);
+      });
       builder.instance?.destroy?.(true);
       builder.destroy?.(true);
     };

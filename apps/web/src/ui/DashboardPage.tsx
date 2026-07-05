@@ -1,11 +1,12 @@
-﻿import { Archive, Copy, FileText, KeyRound, MailPlus, Pencil, Plus, Send, Trash2, UserPlus, Users } from "lucide-react";
+import { Activity, Archive, Copy, Download, FileText, History, KeyRound, MailPlus, Pencil, Plus, RotateCcw, Send, Trash2, Upload, UserPlus, Users } from "lucide-react";
 import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Link, useOutletContext } from "react-router-dom";
-import { api, FormSummary, Project, Tenant, TenantRole, TenantUser } from "../api";
+import { api, AuditLog, FormExport, FormSummary, Project, Tenant, TenantRole, TenantUser } from "../api";
 import { emptyFormSchema } from "../formSchemas";
 import { RenameDialog } from "./RenameDialog";
 
 type RenameTarget =
+  | { type: "tenant"; tenant: Tenant }
   | { type: "project"; project: Project }
   | { type: "form"; projectId: string; form: FormSummary };
 
@@ -39,6 +40,7 @@ export function DashboardPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [archivedForms, setArchivedForms] = useState<FormSummary[]>([]);
   const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
+  const [tenantAuditLogs, setTenantAuditLogs] = useState<AuditLog[]>([]);
   const [tenantUserEmail, setTenantUserEmail] = useState("");
   const [tenantUserRole, setTenantUserRole] = useState<TenantRole>("VIEWER");
   const [createTenantError, setCreateTenantError] = useState<string | null>(null);
@@ -82,12 +84,15 @@ export function DashboardPage() {
     if (nextProject) {
       await loadArchivedForms(nextProject.id);
       await loadTenantUsers(nextProject.tenantId);
+      await loadTenantAudit(nextProject.tenantId);
     } else if (nextTenantId) {
       setArchivedForms([]);
       await loadTenantUsers(nextTenantId);
+      await loadTenantAudit(nextTenantId);
     } else {
       setArchivedForms([]);
       setTenantUsers([]);
+      setTenantAuditLogs([]);
     }
   }
 
@@ -101,12 +106,22 @@ export function DashboardPage() {
     setTenantUsers(data);
   }
 
+  async function loadTenantAudit(tenantId: string) {
+    try {
+      const data = await api<AuditLog[]>(`/tenants/${tenantId}/audit`);
+      setTenantAuditLogs(data);
+    } catch {
+      setTenantAuditLogs([]);
+    }
+  }
+
   async function selectProject(project: Project) {
     setActiveView("project");
     setSelectedTenantId(project.tenantId);
     setSelectedProject(project);
     await loadArchivedForms(project.id);
     await loadTenantUsers(project.tenantId);
+    await loadTenantAudit(project.tenantId);
   }
 
   async function selectTenant(tenant: TenantGroup) {
@@ -115,6 +130,7 @@ export function DashboardPage() {
     setSelectedProject(null);
     setArchivedForms([]);
     await loadTenantUsers(tenant.id);
+    await loadTenantAudit(tenant.id);
   }
 
   useEffect(() => {
@@ -126,6 +142,7 @@ export function DashboardPage() {
       setSelectedProject(null);
       setArchivedForms([]);
       setTenantUsers([]);
+      setTenantAuditLogs([]);
       return;
     }
     void load().catch((error) => {
@@ -236,6 +253,22 @@ export function DashboardPage() {
     await load(selectedProject.id, selectedProject.tenantId, "project");
   }
 
+  async function importForm() {
+    if (!selectedProject) return;
+    const imported = await pickFormJson();
+    if (!imported) return;
+    await api(`/projects/${selectedProject.id}/forms`, {
+      method: "POST",
+      body: JSON.stringify({
+        name: imported.name ?? "Importiertes Formular",
+        slug: `${slugify(imported.name ?? "importiertes-formular")}-${Date.now()}`,
+        schema: imported.schema,
+        translations: imported.translations ?? { de: {}, en: {} }
+      })
+    });
+    await load(selectedProject.id, selectedProject.tenantId, "project");
+  }
+
   async function addTenantUser() {
     const tenantId = selectedTenantId ?? selectedProject?.tenantId;
     if (!tenantId || !tenantUserEmail.trim()) return;
@@ -250,6 +283,7 @@ export function DashboardPage() {
       setTenantUserRole("VIEWER");
       setTenantUserMessage("Benutzer wurde gespeichert und per E-Mail eingeladen.");
       await loadTenantUsers(tenantId);
+      await loadTenantAudit(tenantId);
     } catch (error) {
       setTenantUserError(error instanceof Error ? error.message : "Benutzer konnte nicht gespeichert werden.");
     }
@@ -265,6 +299,7 @@ export function DashboardPage() {
         body: JSON.stringify({ role })
       });
       await loadTenantUsers(tenantId);
+      await loadTenantAudit(tenantId);
     } catch (error) {
       setTenantUserError(error instanceof Error ? error.message : "Rolle konnte nicht aktualisiert werden.");
     }
@@ -277,6 +312,7 @@ export function DashboardPage() {
     try {
       await api(`/tenants/${tenantId}/users/${tenantUser.id}`, { method: "DELETE" });
       await loadTenantUsers(tenantId);
+      await loadTenantAudit(tenantId);
     } catch (error) {
       setTenantUserError(error instanceof Error ? error.message : "Benutzer konnte nicht entfernt werden.");
     }
@@ -284,6 +320,15 @@ export function DashboardPage() {
 
   async function submitRename(name: string) {
     if (!renameTarget) return;
+    if (renameTarget.type === "tenant") {
+      const tenant = await api<Tenant>(`/tenants/${renameTarget.tenant.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name })
+      });
+      setRenameTarget(null);
+      await load(undefined, tenant.id, "tenant");
+      return;
+    }
     if (renameTarget.type === "project") {
       const project = await api<Project>(`/projects/${renameTarget.project.id}`, {
         method: "PATCH",
@@ -327,10 +372,6 @@ export function DashboardPage() {
           <p className="eyebrow">V1 Admin</p>
           <h1>{activeView === "tenant" ? "Mandantendetails" : "Projektverwaltung"}</h1>
         </div>
-        <button disabled={!user} onClick={createProject}>
-          <Plus size={16} />
-          Projekt im Mandanten erstellen
-        </button>
       </header>
       {loadError && <p className="status-message failed">{loadError}</p>}
 
@@ -353,15 +394,26 @@ export function DashboardPage() {
                   : "Waehle links einen Mandanten aus."}
               </p>
             </div>
-            <div className="overview-stats" aria-label="Mandantenstatistik">
-              <span>
-                <strong>{selectedTenant?.projects?.length ?? 0}</strong>
-                Projekte
-              </span>
-              <span>
-                <strong>{tenantUsers.length}</strong>
-                Benutzer
-              </span>
+            <div className="tenant-overview-actions">
+              <div className="panel-actions">
+                <button
+                  disabled={!selectedTenant}
+                  onClick={() => selectedTenant && setRenameTarget({ type: "tenant", tenant: selectedTenant })}
+                  title="Mandant umbenennen"
+                >
+                  <Pencil size={16} />
+                </button>
+              </div>
+              <div className="overview-stats" aria-label="Mandantenstatistik">
+                <span>
+                  <strong>{selectedTenant?.projects?.length ?? 0}</strong>
+                  Projekte
+                </span>
+                <span>
+                  <strong>{tenantUsers.length}</strong>
+                  Benutzer
+                </span>
+              </div>
             </div>
           </section>
 
@@ -405,25 +457,38 @@ export function DashboardPage() {
             </div>
             {tenantUserError && <p className="status-message failed">{tenantUserError}</p>}
             {tenantUserMessage && <p className="status-message passed">{tenantUserMessage}</p>}
-            <div className="tenant-user-list">
-              {tenantUsers.length === 0 && (
-                <div className="empty-state-box">
-                  <Users size={22} />
-                  <div>
-                    <strong>Keine Mandantenbenutzer</strong>
-                    <span>Fuege Benutzer hinzu, die auf alle Projekte dieses Mandanten zugreifen duerfen.</span>
-                  </div>
+            {tenantUsers.length === 0 ? (
+              <div className="empty-state-box">
+                <Users size={22} />
+                <div>
+                  <strong>Keine Mandantenbenutzer</strong>
+                  <span>Fuege Benutzer hinzu, die auf alle Projekte dieses Mandanten zugreifen duerfen.</span>
                 </div>
-              )}
-              {tenantUsers.map((tenantUser) => (
-                <TenantUserRow
-                  key={tenantUser.id}
-                  tenantUser={tenantUser}
-                  onRoleChange={(role) => void updateTenantUserRole(tenantUser, role)}
-                  onRemove={() => void removeTenantUser(tenantUser)}
-                />
-              ))}
-            </div>
+              </div>
+            ) : (
+              <div className="tenant-user-table-wrap">
+                <table className="tenant-user-table">
+                  <thead>
+                    <tr>
+                      <th>Benutzer</th>
+                      <th>Rolle</th>
+                      <th>OIDC-Verknuepfung</th>
+                      <th aria-label="Aktionen" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tenantUsers.map((tenantUser) => (
+                      <TenantUserRow
+                        key={tenantUser.id}
+                        tenantUser={tenantUser}
+                        onRoleChange={(role) => void updateTenantUserRole(tenantUser, role)}
+                        onRemove={() => void removeTenantUser(tenantUser)}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           <section className="panel tenant-projects-panel">
@@ -457,6 +522,17 @@ export function DashboardPage() {
                 </button>
               ))}
             </div>
+          </section>
+
+          <section className="panel tenant-audit-panel">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">Audit Trail</p>
+                <h2>Aktivitaeten dieses Mandanten</h2>
+              </div>
+              <span className="count-badge">{tenantAuditLogs.length}</span>
+            </div>
+            <TenantAuditTable logs={tenantAuditLogs} />
           </section>
         </div>
         )}
@@ -505,6 +581,10 @@ export function DashboardPage() {
               <button disabled={!selectedProject} onClick={createForm}>
                 <Plus size={16} />
                 Formular erstellen
+              </button>
+              <button className="secondary-button" disabled={!selectedProject} onClick={importForm}>
+                <Upload size={16} />
+                JSON importieren
               </button>
             </div>
           </section>
@@ -559,8 +639,20 @@ export function DashboardPage() {
 
       {renameTarget && (
         <RenameDialog
-          label={renameTarget.type === "project" ? "Projekt umbenennen" : "Formular umbenennen"}
-          initialValue={renameTarget.type === "project" ? renameTarget.project.name : renameTarget.form.name}
+          label={
+            renameTarget.type === "tenant"
+              ? "Mandant umbenennen"
+              : renameTarget.type === "project"
+                ? "Projekt umbenennen"
+                : "Formular umbenennen"
+          }
+          initialValue={
+            renameTarget.type === "tenant"
+              ? renameTarget.tenant.name
+              : renameTarget.type === "project"
+                ? renameTarget.project.name
+                : renameTarget.form.name
+          }
           onCancel={() => setRenameTarget(null)}
           onSubmit={submitRename}
         />
@@ -657,6 +749,117 @@ function LoginLanding({ onLogin }: { onLogin: () => Promise<unknown> }) {
   );
 }
 
+function TenantAuditTable({ logs }: { logs: AuditLog[] }) {
+  if (logs.length === 0) {
+    return (
+      <div className="empty-state-box">
+        <Activity size={22} />
+        <div>
+          <strong>Noch keine Audit-Eintraege</strong>
+          <span>Aktivitaeten zu Mandant, Projekten, Formularen und Benutzern erscheinen hier.</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tenant-audit-table-wrap">
+      <table className="tenant-audit-table">
+        <thead>
+          <tr>
+            <th>Zeitpunkt</th>
+            <th>Aktion</th>
+            <th>Formular</th>
+            <th>Bereich</th>
+            <th>Benutzer</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {logs.map((log) => (
+            <tr key={log.id}>
+              <td>{formatDateTime(log.createdAt)}</td>
+              <td>
+                <span className="status-pill muted">{auditActionLabel(log.action)}</span>
+              </td>
+              <td>
+                <strong>{auditFormName(log) ?? "-"}</strong>
+                {auditFormName(log) && <small>Formular</small>}
+              </td>
+              <td>
+                <strong>{log.project?.name ?? auditEntityLabel(log.entity)}</strong>
+                {log.project && <small>Projekt</small>}
+              </td>
+              <td>{log.actorName ?? log.actor ?? "System"}</td>
+              <td>{auditDetail(log)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function auditActionLabel(action: string) {
+  const labels: Record<string, string> = {
+    "api.access": "API-Zugriff",
+    "api_key.created": "API-Key erstellt",
+    "form.archived": "Formular archiviert",
+    "form.created": "Formular erstellt",
+    "form.draft_changed": "Draft geaendert",
+    "form.imported": "Formular importiert",
+    "form.permanently_deleted": "Formular geloescht",
+    "form.published": "Formular publiziert",
+    "form.updated": "Formular umbenannt",
+    "form.version_restored": "Version wiederhergestellt",
+    "project.archived": "Projekt archiviert",
+    "project.created": "Projekt erstellt",
+    "project.permanently_deleted": "Projekt geloescht",
+    "project.updated": "Projekt umbenannt",
+    "submission.created": "Einreichung erstellt",
+    "tenant.created": "Mandant erstellt",
+    "tenant.updated": "Mandant umbenannt",
+    "tenant.user_invitation_sent": "Einladung versendet",
+    "tenant.user_removed": "Benutzer entfernt",
+    "tenant.user_updated": "Benutzerrolle geaendert",
+    "tenant.user_upserted": "Benutzer gespeichert"
+  };
+  return labels[action] ?? action;
+}
+
+function auditEntityLabel(entity: string) {
+  const labels: Record<string, string> = {
+    ApiKey: "API-Key",
+    Form: "Formular",
+    FormVersion: "Formularversion",
+    Invitation: "Einladung",
+    Project: "Projekt",
+    Submission: "Einreichung",
+    Tenant: "Mandant",
+    TenantUser: "Mandantenbenutzer"
+  };
+  return labels[entity] ?? entity;
+}
+
+function auditFormName(log: AuditLog) {
+  if (log.form?.name) return log.form.name;
+  const metadata = log.metadata ?? {};
+  if (log.entity.startsWith("Form") && typeof metadata.name === "string") return metadata.name;
+  return null;
+}
+
+function auditDetail(log: AuditLog) {
+  const metadata = log.metadata ?? {};
+  const parts = [
+    typeof metadata.name === "string" ? metadata.name : null,
+    typeof metadata.previousName === "string" ? `vorher: ${metadata.previousName}` : null,
+    typeof metadata.email === "string" ? metadata.email : null,
+    typeof metadata.role === "string" ? metadata.role : null,
+    typeof metadata.sourceVersion === "number" ? `Quelle v${metadata.sourceVersion}` : null
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" - ") : auditEntityLabel(log.entity);
+}
+
 function TenantUserRow({
   tenantUser,
   onRoleChange,
@@ -667,27 +870,120 @@ function TenantUserRow({
   onRemove: () => void;
 }) {
   return (
-    <article className="tenant-user-row">
-      <div>
+    <tr>
+      <td>
         <strong>{tenantUser.email}</strong>
-        <span>{tenantUser.subject ? `OIDC: ${tenantUser.subject}` : "Noch kein OIDC-Subject verknuepft"}</span>
-      </div>
-      <select
-        aria-label={`Rolle fuer ${tenantUser.email}`}
-        onChange={(event) => onRoleChange(event.target.value as TenantRole)}
-        value={tenantUser.role}
-      >
-        {TENANT_ROLES.map((role) => (
-          <option key={role.value} value={role.value}>
-            {role.label}
-          </option>
-        ))}
-      </select>
-      <button title="Benutzer entfernen" onClick={onRemove}>
-        <Trash2 size={16} />
-      </button>
-    </article>
+      </td>
+      <td>
+        <select
+          aria-label={`Rolle fuer ${tenantUser.email}`}
+          onChange={(event) => onRoleChange(event.target.value as TenantRole)}
+          value={tenantUser.role}
+        >
+          {TENANT_ROLES.map((role) => (
+            <option key={role.value} value={role.value}>
+              {role.label}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td>
+        <span className={tenantUser.subject ? "status-pill passed" : "status-pill muted"}>
+          {tenantUser.subject ? "Verknuepft" : "Ausstehend"}
+        </span>
+        {tenantUser.subject && <small>{tenantUser.subject}</small>}
+      </td>
+      <td className="tenant-user-actions">
+        <button title="Benutzer entfernen" onClick={onRemove}>
+          <Trash2 size={16} />
+        </button>
+      </td>
+    </tr>
   );
+}
+
+type SaveFilePicker = (options: {
+  suggestedName?: string;
+  types?: Array<{ accept: Record<string, string[]>; description: string }>;
+}) => Promise<{ createWritable: () => Promise<{ close: () => Promise<void>; write: (data: Blob) => Promise<void> }> }>;
+
+async function downloadJson(filename: string, data: unknown) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const saveFilePicker = (window as Window & { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+  if (saveFilePicker) {
+    try {
+      const handle = await saveFilePicker({
+        suggestedName: filename,
+        types: [{ accept: { "application/json": [".json"] }, description: "JSON Datei" }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    link.remove();
+  }, 1000);
+}
+
+function pickJsonFile() {
+  return new Promise<File | null>((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.click();
+  });
+}
+
+async function pickFormJson(): Promise<FormExport | null> {
+  const file = await pickJsonFile();
+  if (!file) return null;
+  let parsed: Partial<FormExport> & Record<string, unknown>;
+  try {
+    parsed = JSON.parse(await file.text()) as Partial<FormExport> & Record<string, unknown>;
+  } catch {
+    window.alert("Die JSON-Datei konnte nicht gelesen werden.");
+    return null;
+  }
+  const schema = parsed.schema && typeof parsed.schema === "object"
+    ? parsed.schema as Record<string, unknown>
+    : Array.isArray(parsed.components)
+      ? parsed as Record<string, unknown>
+      : null;
+  if (!schema) {
+    window.alert("Die JSON-Datei enthaelt kein gueltiges Form.io Schema.");
+    return null;
+  }
+  return {
+    name: typeof parsed.name === "string" ? parsed.name : file.name.replace(/\.json$/i, ""),
+    schema,
+    translations: parsed.translations && typeof parsed.translations === "object"
+      ? parsed.translations as Record<string, unknown>
+      : {}
+  };
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "formular";
 }
 
 function FormRow({
@@ -705,7 +1001,10 @@ function FormRow({
   const publications = form.publications ?? [];
   const draft = versions.find((version) => version.status === "DRAFT");
   const published = versions.find((version) => version.status === "PUBLISHED");
+  const publishedHistory = versions.filter((version) => version.publishedAt || ["PUBLISHED", "ARCHIVED"].includes(version.status));
   const publication = publications.find((item) => item.active);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null);
 
   async function publish() {
     await api(`/projects/${projectId}/forms/${form.id}/publish`, { method: "POST" });
@@ -739,6 +1038,33 @@ function FormRow({
     window.prompt("API-Key", key.key);
   }
 
+  async function exportJson() {
+    const exported = await api<FormExport>(`/projects/${projectId}/forms/${form.id}/export`);
+    await downloadJson(`${slugify(exported.name ?? form.name)}.json`, exported);
+  }
+
+  async function importJson() {
+    const imported = await pickFormJson();
+    if (!imported) return;
+    await api(`/projects/${projectId}/forms/${form.id}/import`, {
+      method: "POST",
+      body: JSON.stringify(imported)
+    });
+    await reload(projectId);
+  }
+
+  async function restoreVersion(versionId: string) {
+    const confirmed = window.confirm("Diese Version als aktuellen Draft uebernehmen? Der bestehende Draft wird ueberschrieben.");
+    if (!confirmed) return;
+    setRestoringVersionId(versionId);
+    try {
+      await api(`/projects/${projectId}/forms/${form.id}/versions/${versionId}/restore`, { method: "POST" });
+      await reload(projectId);
+    } finally {
+      setRestoringVersionId(null);
+    }
+  }
+
   return (
     <article className="form-card">
       <div className="form-main">
@@ -764,13 +1090,61 @@ function FormRow({
           <button title="Umbenennen" onClick={onRename}><Pencil size={16} /></button>
           <button title="Publizieren" onClick={publish}><Send size={16} /></button>
           <button title="Einladen" onClick={invite}><MailPlus size={16} /></button>
+          <button title="Versionsverlauf" onClick={() => setHistoryOpen((current) => !current)}><History size={16} /></button>
+          <button title="JSON exportieren" onClick={exportJson}><Download size={16} /></button>
+          <button title="JSON importieren" onClick={importJson}><Upload size={16} /></button>
           <button title="Duplizieren" onClick={duplicate}><Copy size={16} /></button>
           <button title="API-Key" onClick={apiKey}><KeyRound size={16} /></button>
           <button title="Archivieren" onClick={archive}><Archive size={16} /></button>
         </div>
       </div>
+      {historyOpen && (
+        <div className="version-history">
+          <div className="version-history-header">
+            <div>
+              <strong>Publizierte Versionen</strong>
+              <span>{publishedHistory.length} Eintraege</span>
+            </div>
+          </div>
+          {publishedHistory.length === 0 ? (
+            <div className="empty-state-box compact">
+              <History size={18} />
+              <span>Noch keine publizierte Version vorhanden.</span>
+            </div>
+          ) : (
+            <div className="version-history-list">
+              {publishedHistory.map((version) => (
+                <div className="version-history-row" key={version.id}>
+                  <div>
+                    <strong>Version {version.version}</strong>
+                    <span>
+                      {version.status === "PUBLISHED" ? "Aktuell publiziert" : "Vorherige publizierte Version"}
+                      {version.publishedAt ? ` · publiziert am ${formatDateTime(version.publishedAt)}` : ""}
+                    </span>
+                  </div>
+                  <button
+                    className="secondary-button"
+                    disabled={restoringVersionId === version.id}
+                    onClick={() => void restoreVersion(version.id)}
+                  >
+                    <RotateCcw size={16} />
+                    Als Draft uebernehmen
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </article>
   );
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("de-CH", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
 
 function ArchivedFormRow({ form, onDelete }: { form: FormSummary; onDelete: () => void }) {

@@ -7,6 +7,12 @@ export class CreateTenantDto {
   name!: string;
 }
 
+export class UpdateTenantDto {
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+}
+
 export class UpsertTenantUserDto {
   @IsEmail()
   email!: string;

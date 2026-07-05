@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { AuthRequest } from "../auth/auth.types";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
-import { CreateFormDto, UpdateDraftDto, UpdateFormDto } from "./forms.dto";
+import { CreateFormDto, ImportFormDto, UpdateDraftDto, UpdateFormDto } from "./forms.dto";
 import { FormsService } from "./forms.service";
 
 @ApiTags("forms")
@@ -28,6 +28,35 @@ export class FormsController {
   @Roles("service-admin", "project-admin", "form-editor")
   create(@Param("projectId") projectId: string, @Body() dto: CreateFormDto, @Req() req: AuthRequest) {
     return this.forms.create(projectId, dto, req.user?.subject);
+  }
+
+  @Get(":formId/export")
+  @Roles("service-admin", "project-admin", "form-editor")
+  export(@Param("projectId") projectId: string, @Param("formId") formId: string) {
+    return this.forms.export(projectId, formId);
+  }
+
+  @Post(":formId/import")
+  @Roles("service-admin", "project-admin", "form-editor")
+  import(@Param("projectId") projectId: string, @Param("formId") formId: string, @Body() dto: ImportFormDto, @Req() req: AuthRequest) {
+    return this.forms.importDraft(projectId, formId, dto, req.user?.subject);
+  }
+
+  @Get(":formId/versions/published")
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
+  listPublishedVersions(@Param("projectId") projectId: string, @Param("formId") formId: string) {
+    return this.forms.listPublishedVersions(projectId, formId);
+  }
+
+  @Post(":formId/versions/:versionId/restore")
+  @Roles("service-admin", "project-admin", "form-editor")
+  restoreVersion(
+    @Param("projectId") projectId: string,
+    @Param("formId") formId: string,
+    @Param("versionId") versionId: string,
+    @Req() req: AuthRequest
+  ) {
+    return this.forms.restoreVersion(projectId, formId, versionId, req.user?.subject);
   }
 
   @Get(":formId")

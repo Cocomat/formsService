@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import { AuthRequest } from "../auth/auth.types";
 import { Roles } from "../auth/roles.decorator";
 import { RolesGuard } from "../auth/roles.guard";
-import { CreateTenantDto, UpdateTenantUserDto, UpsertTenantUserDto } from "./tenants.dto";
+import { CreateTenantDto, UpdateTenantDto, UpdateTenantUserDto, UpsertTenantUserDto } from "./tenants.dto";
 import { TenantsService } from "./tenants.service";
 
 @ApiTags("tenants")
@@ -24,6 +24,18 @@ export class TenantsController {
   @Roles("service-admin", "project-admin")
   create(@Body() dto: CreateTenantDto, @Req() req: AuthRequest) {
     return this.tenants.create(dto, req.user?.subject);
+  }
+
+  @Patch(":tenantId")
+  @Roles("service-admin")
+  update(@Param("tenantId") tenantId: string, @Body() dto: UpdateTenantDto, @Req() req: AuthRequest) {
+    return this.tenants.update(tenantId, dto, req.user?.subject);
+  }
+
+  @Get(":tenantId/audit")
+  @Roles("service-admin")
+  listAudit(@Param("tenantId") tenantId: string) {
+    return this.tenants.listAudit(tenantId);
   }
 
   @Get(":tenantId/users")
