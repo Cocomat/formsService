@@ -3,7 +3,6 @@
   "steps": {
     "build": {
       "commands": [
-        "...",
         "pnpm --filter @formularservice/api prisma:generate",
         "pnpm --filter @formularservice/api build"
       ]

@@ -3,7 +3,6 @@
   "steps": {
     "build": {
       "commands": [
-        "...",
         "pnpm --filter @formularservice/web build"
       ]
     }
