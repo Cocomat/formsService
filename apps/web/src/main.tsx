@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import "@formio/js/dist/formio.full.min.css";
 import "@formio/js/dist/formio.builder.min.css";
 import "./styles.css";
+import "./oblique-theme.css";
 import { AppShell } from "./ui/AppShell";
 import { DashboardPage } from "./ui/DashboardPage";
 import { FormEditorPage } from "./ui/FormEditorPage";

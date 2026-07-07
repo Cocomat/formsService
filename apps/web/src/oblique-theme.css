@@ -1,0 +1,343 @@
+:root {
+  --ob-red-500: #e30613;
+  --ob-red-600: #c40018;
+  --ob-red-700: #a00016;
+  --ob-gray-50: #f7f7f7;
+  --ob-gray-100: #f2f2f2;
+  --ob-gray-200: #e5e5e5;
+  --ob-gray-300: #d5d7da;
+  --ob-gray-500: #6f7275;
+  --ob-gray-700: #3b3f42;
+  --ob-gray-900: #111111;
+  --ob-blue-500: #006699;
+  --ob-green-600: #237a42;
+  --ob-yellow-100: #fff8de;
+  --ob-shadow-raised: 0 12px 30px rgb(0 0 0 / 10%);
+  --ob-shadow-overlay: 0 22px 64px rgb(0 0 0 / 24%);
+  --ob-space-page: clamp(18px, 3vw, 36px);
+  --swiss-red: var(--ob-red-500);
+  --swiss-red-dark: var(--ob-red-700);
+  --swiss-black: var(--ob-gray-900);
+  --swiss-text: #1f1f1f;
+  --swiss-muted: var(--ob-gray-500);
+  --swiss-border: var(--ob-gray-300);
+  --swiss-border-strong: #8d9297;
+  --swiss-bg: var(--ob-gray-100);
+  --swiss-panel: #ffffff;
+  --swiss-soft: var(--ob-gray-100);
+  --swiss-focus: var(--ob-blue-500);
+  color-scheme: light;
+}
+
+body {
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 3%) 0 1px, transparent 1px 100%),
+    linear-gradient(0deg, rgb(0 0 0 / 3%) 0 1px, transparent 1px 100%),
+    var(--ob-gray-100);
+  background-size: 40px 40px;
+}
+
+.app {
+  grid-template-rows: 96px 1fr;
+}
+
+.swiss-header {
+  background: #ffffff;
+  box-shadow: 0 1px 0 var(--ob-gray-300), 0 4px 12px rgb(0 0 0 / 5%);
+  min-height: 96px;
+  padding: 0 32px;
+}
+
+.header-left {
+  align-items: center;
+  display: flex;
+  gap: 26px;
+  min-width: 0;
+}
+
+.official-identity {
+  border-right: 1px solid var(--ob-gray-300);
+  display: grid;
+  gap: 3px;
+  min-width: 230px;
+  padding-right: 22px;
+}
+
+.official-wordmark {
+  color: var(--ob-gray-900);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.official-languages {
+  color: var(--ob-gray-500);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.brand {
+  min-width: 0;
+}
+
+.brand strong,
+.public-brand strong {
+  font-weight: 900;
+}
+
+.brand small,
+.public-brand small {
+  color: var(--ob-gray-500);
+}
+
+.swiss-mark {
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+  flex: 0 0 44px;
+}
+
+.auth-box > div,
+.auth-user {
+  display: grid;
+  gap: 5px;
+  justify-items: end;
+}
+
+.auth-box span,
+.auth-user span {
+  background: #ffffff;
+  border: 1px solid var(--ob-gray-300);
+  border-left: 4px solid var(--ob-red-500);
+  border-radius: 0;
+  color: var(--ob-gray-900);
+}
+
+.sidebar {
+  background: #ffffff;
+  box-shadow: inset -1px 0 0 var(--ob-gray-300);
+}
+
+.nav-item,
+.tenant-node-header,
+.project-item,
+.tenant-project-row,
+.row {
+  border-radius: 0;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.nav-item {
+  border-left-color: transparent;
+  font-weight: 900;
+}
+
+.nav-item:hover,
+.tenant-node-header:hover,
+.project-item:hover,
+.tenant-project-row:hover,
+.row:hover {
+  background: #ffffff;
+  box-shadow: inset 4px 0 0 var(--ob-red-500);
+}
+
+.tenant-node.active,
+.project-item.active,
+.row.active {
+  background: #fff7f7;
+  border-color: var(--ob-red-500);
+}
+
+.main {
+  padding: var(--ob-space-page);
+}
+
+.page-header {
+  background: #ffffff;
+  border: 1px solid var(--ob-gray-300);
+  border-top: 6px solid var(--ob-red-500);
+  margin-bottom: 22px;
+  padding: 22px 24px;
+}
+
+.page-header h1 {
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 900;
+}
+
+.eyebrow {
+  color: var(--ob-red-700);
+  font-weight: 900;
+}
+
+.panel,
+.builder-surface,
+.form-card,
+.public-form-card,
+.public-form-intro,
+.public-message-panel,
+.login-copy,
+.login-panel,
+.landing-section-heading,
+.landing-feature-strip article,
+.landing-product-grid article {
+  border-radius: 0;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 4%);
+}
+
+.panel,
+.builder-surface,
+.form-card {
+  border-color: var(--ob-gray-300);
+}
+
+.panel:hover,
+.form-card:hover {
+  border-color: #b7bcc1;
+}
+
+button,
+.button {
+  border-radius: 0;
+  font-weight: 900;
+  min-height: 42px;
+}
+
+.secondary-button {
+  background: #ffffff;
+  border-color: #8d9297;
+}
+
+.secondary-button:hover {
+  background: var(--ob-gray-100);
+  border-color: var(--ob-gray-900);
+}
+
+input,
+select,
+textarea {
+  border-radius: 0;
+}
+
+.count-badge,
+.status-pill,
+.trust-row span,
+.overview-stats span {
+  border-radius: 0;
+}
+
+.status-pill.passed,
+.status-message.passed {
+  border-color: var(--ob-green-600);
+  color: var(--ob-green-600);
+}
+
+.status-pill.draft {
+  background: var(--ob-yellow-100);
+}
+
+.tenant-user-table th,
+.tenant-audit-table th {
+  background: #f2f2f2;
+  color: var(--ob-gray-700);
+}
+
+.login-landing,
+.public-shell {
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 4%) 0 1px, transparent 1px 100%),
+    linear-gradient(0deg, rgb(0 0 0 / 4%) 0 1px, transparent 1px 100%),
+    var(--ob-gray-100);
+  background-size: 40px 40px;
+}
+
+.login-copy {
+  border: 1px solid var(--ob-gray-300);
+  border-top: 8px solid var(--ob-red-500);
+}
+
+.login-copy h1 {
+  font-size: clamp(34px, 5vw, 56px);
+  font-weight: 900;
+}
+
+.login-panel {
+  background: var(--ob-gray-900);
+  border-top: 8px solid var(--ob-red-500);
+}
+
+.landing-feature-strip,
+.landing-product-grid {
+  gap: 12px;
+}
+
+.landing-feature-strip article,
+.landing-product-grid article {
+  border: 1px solid var(--ob-gray-300);
+  border-top: 5px solid var(--ob-red-500);
+}
+
+.public-header {
+  border-bottom: 1px solid var(--ob-gray-300);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 5%);
+}
+
+.public-form-intro,
+.public-message-panel {
+  border: 1px solid var(--ob-gray-300);
+  border-top: 8px solid var(--ob-red-500);
+  box-shadow: var(--ob-shadow-raised);
+}
+
+.public-form-card {
+  border-color: var(--ob-gray-300);
+}
+
+.formio-builder-host .formbuilder,
+.formio-builder-host .formarea,
+.formio-builder-host .card.form-builder-panel,
+.formio-dialog-content {
+  border-radius: 0 !important;
+}
+
+.formio-builder-host .card.form-builder-panel,
+.formio-dialog-content .component-edit-tabs {
+  border-top: 5px solid var(--ob-red-500);
+}
+
+.formio-dialog-content {
+  box-shadow: var(--ob-shadow-overlay);
+}
+
+.formio-dialog-content .nav-tabs .nav-link.active {
+  border-left-color: var(--ob-red-500);
+}
+
+@media (max-width: 900px) {
+  .app {
+    grid-template-rows: auto auto 1fr;
+  }
+
+  .swiss-header,
+  .header-left {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .swiss-header {
+    gap: 18px;
+    padding: 18px;
+  }
+
+  .official-identity {
+    border-bottom: 1px solid var(--ob-gray-300);
+    border-right: 0;
+    min-width: 0;
+    padding-bottom: 12px;
+    padding-right: 0;
+    width: 100%;
+  }
+
+  .auth-box > div,
+  .auth-user {
+    justify-items: start;
+  }
+}

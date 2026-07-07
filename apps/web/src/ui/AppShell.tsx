@@ -60,17 +60,23 @@ export function AppShell() {
   return (
     <div className={user ? "app" : "app app-public"}>
       <header className="swiss-header">
-        <div className="brand">
-          <span className="swiss-mark" aria-hidden="true">
-            <span />
-          </span>
-          <div>
-            <strong>FormularService</strong>
-            <small>Schweizer Verwaltungsplattform</small>
+        <div className="header-left">
+          <div className="official-identity" aria-label="Schweizerische Eidgenossenschaft">
+            <span className="official-wordmark">Schweizerische Eidgenossenschaft</span>
+            <span className="official-languages">Confederation suisse Confederazione Svizzera Confederaziun svizra</span>
+          </div>
+          <div className="brand">
+            <span className="swiss-mark" aria-hidden="true">
+              <span />
+            </span>
+            <div>
+              <strong>FormularService</strong>
+              <small>Digitale Formulare der Bundesverwaltung</small>
+            </div>
           </div>
         </div>
         <div className="auth-box">
-          <div className="auth-user">
+          <div>
             <small>{user?.profile.email ?? "Nicht angemeldet"}</small>
             {roleLabel && <span>Rolle: {roleLabel}</span>}
           </div>
