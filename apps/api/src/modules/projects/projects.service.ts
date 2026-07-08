@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { LifecycleStatus, ProjectRole } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
+import { AuthUser } from "../auth/auth.types";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateProjectDto, InviteProjectUserDto, UpdateProjectDto } from "./projects.dto";
 
@@ -11,9 +12,10 @@ export class ProjectsService {
     private readonly audit: AuditService
   ) {}
 
-  list() {
+  async list(currentUser?: AuthUser) {
+    const projectWhere = await this.visibleProjectWhere(currentUser);
     return this.prisma.project.findMany({
-      where: { status: LifecycleStatus.ACTIVE },
+      where: { status: LifecycleStatus.ACTIVE, ...projectWhere },
       include: {
         tenant: true,
         users: true,
@@ -149,4 +151,42 @@ export class ProjectsService {
     });
     return user;
   }
+
+  private async visibleProjectWhere(currentUser?: AuthUser) {
+    if (currentUser?.roles.includes("service-admin")) {
+      return {};
+    }
+    const identity = currentUserIdentity(currentUser);
+    if (identity.length === 0) {
+      return { id: { in: [] } };
+    }
+    const tenantUsers = await this.prisma.tenantUser.findMany({
+      where: {
+        OR: [
+          { email: { in: identity } },
+          { subject: { in: identity } }
+        ]
+      },
+      select: { tenantId: true }
+    });
+    const projectUsers = await this.prisma.projectUser.findMany({
+      where: {
+        OR: [
+          { email: { in: identity } },
+          { subject: { in: identity } }
+        ]
+      },
+      select: { projectId: true }
+    });
+    return {
+      OR: [
+        { tenantId: { in: tenantUsers.map((user) => user.tenantId) } },
+        { id: { in: projectUsers.map((user) => user.projectId) } }
+      ]
+    };
+  }
+}
+
+function currentUserIdentity(currentUser?: AuthUser) {
+  return [currentUser?.email, currentUser?.subject].filter((value): value is string => Boolean(value));
 }

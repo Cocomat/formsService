@@ -14,8 +14,10 @@ export class TenantsService {
     private readonly mail: MailService
   ) {}
 
-  list() {
+  async list(currentUser?: AuthUser) {
+    const tenantIds = await this.visibleTenantIds(currentUser);
     return this.prisma.tenant.findMany({
+      where: tenantIds ? { id: { in: tenantIds } } : undefined,
       include: {
         projects: {
           where: { status: LifecycleStatus.ACTIVE },
@@ -231,10 +233,34 @@ export class TenantsService {
     if (!tenant) throw new NotFoundException("Tenant not found");
     return tenant;
   }
+
+  private async visibleTenantIds(currentUser?: AuthUser) {
+    if (currentUser?.roles.includes("service-admin")) {
+      return null;
+    }
+    const identity = currentUserIdentity(currentUser);
+    if (identity.length === 0) {
+      return [];
+    }
+    const tenantUsers = await this.prisma.tenantUser.findMany({
+      where: {
+        OR: [
+          { email: { in: identity } },
+          { subject: { in: identity } }
+        ]
+      },
+      select: { tenantId: true }
+    });
+    return [...new Set(tenantUsers.map((user) => user.tenantId))];
+  }
 }
 
 function metadataString(metadata: unknown, key: string) {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
   const value = (metadata as Record<string, unknown>)[key];
   return typeof value === "string" ? value : null;
+}
+
+function currentUserIdentity(currentUser?: AuthUser) {
+  return [currentUser?.email, currentUser?.subject].filter((value): value is string => Boolean(value));
 }

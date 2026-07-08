@@ -15,11 +15,13 @@ export class FormsController {
   constructor(private readonly forms: FormsService) {}
 
   @Get()
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   list(@Param("projectId") projectId: string) {
     return this.forms.list(projectId);
   }
 
   @Get("archived")
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   listArchived(@Param("projectId") projectId: string) {
     return this.forms.listArchived(projectId);
   }
@@ -60,6 +62,7 @@ export class FormsController {
   }
 
   @Get(":formId")
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   get(@Param("projectId") projectId: string, @Param("formId") formId: string) {
     return this.forms.get(projectId, formId);
   }

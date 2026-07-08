@@ -15,8 +15,8 @@ export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
   @Get()
-  list() {
-    return this.projects.list();
+  list(@Req() req: AuthRequest) {
+    return this.projects.list(req.user);
   }
 
   @Post()
@@ -26,6 +26,7 @@ export class ProjectsController {
   }
 
   @Get(":id")
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   get(@Param("id") id: string) {
     return this.projects.get(id);
   }

@@ -15,13 +15,12 @@ export class TenantsController {
   constructor(private readonly tenants: TenantsService) {}
 
   @Get()
-  @Roles("service-admin", "project-admin")
-  list() {
-    return this.tenants.list();
+  list(@Req() req: AuthRequest) {
+    return this.tenants.list(req.user);
   }
 
   @Post()
-  @Roles("service-admin", "project-admin")
+  @Roles("service-admin")
   create(@Body() dto: CreateTenantDto, @Req() req: AuthRequest) {
     return this.tenants.create(dto, auditActor(req.user));
   }

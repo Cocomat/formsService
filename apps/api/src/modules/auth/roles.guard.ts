@@ -20,9 +20,15 @@ export class RolesGuard implements CanActivate {
     if (!required?.length) {
       return true;
     }
-    const request = context.switchToHttp().getRequest<AuthRequest & { params?: { tenantId?: string; projectId?: string; id?: string } }>();
+    const request = context.switchToHttp().getRequest<
+      AuthRequest & {
+        body?: { tenantId?: string };
+        params?: { tenantId?: string; projectId?: string; id?: string };
+      }
+    >();
     const roles = request.user?.roles ?? [];
-    if (required.some((role) => roles.includes(role))) {
+
+    if (required.includes("service-admin") && roles.includes("service-admin")) {
       return true;
     }
 
@@ -31,7 +37,7 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
-    const tenantId = await this.resolveTenantId(request.params);
+    const tenantId = await this.resolveTenantId(request.params, request.body);
     if (!tenantId) {
       return false;
     }
@@ -54,9 +60,12 @@ export class RolesGuard implements CanActivate {
     return projectUser ? required.some((role) => projectRoleAllows(projectUser.role, role)) : false;
   }
 
-  private async resolveTenantId(params?: { tenantId?: string; projectId?: string; id?: string }) {
+  private async resolveTenantId(params?: { tenantId?: string; projectId?: string; id?: string }, body?: { tenantId?: string }) {
     if (params?.tenantId) {
       return params.tenantId;
+    }
+    if (body?.tenantId) {
+      return body.tenantId;
     }
     const projectId = params?.projectId ?? params?.id;
     if (!projectId) {

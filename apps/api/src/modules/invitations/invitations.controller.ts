@@ -15,6 +15,7 @@ export class InvitationsController {
   @Get("projects/:projectId/invitations")
   @ApiBearerAuth()
   @UseGuards(AuthGuard("jwt"), RolesGuard)
+  @Roles("service-admin", "project-admin", "form-editor", "viewer")
   list(@Param("projectId") projectId: string) {
     return this.invitations.list(projectId);
   }
